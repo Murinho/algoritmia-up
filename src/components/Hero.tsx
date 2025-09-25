@@ -1,6 +1,7 @@
 'use client';
 
 import Image from 'next/image';
+import HeroStats from "@/components/HeroStats";
 import Link from 'next/link';
 
 export default function Hero() {
@@ -29,7 +30,7 @@ export default function Hero() {
             {/* 1. Big title */}
             <h1
               id="hero-title"
-              className="text-4xl font-bold tracking-tight text-white sm:text-6xl"
+              className="text-4xl font-bold tracking-tight text-white sm:text-7xl"
             >
               Algoritmia UP
             </h1>
@@ -63,45 +64,24 @@ export default function Hero() {
                 Ver eventos
               </Link>
             </div>
-
-            {/* 6–8. Stats */}
-            <dl className="mt-10 grid grid-cols-1 gap-6 sm:grid-cols-3">
-              <div className="rounded-xl border border-gray-200 p-4">
-                <dt className="text-sm text-gray-200">Miembros</dt>
-                <dd className="mt-1 text-2xl font-semibold text-gray-200">
-                  +100
-                </dd>
-              </div>
-
-              <div className="rounded-xl border border-gray-200 p-4">
-                <dt className="text-sm text-gray-200">Big-tech interns</dt>
-                <dd className="mt-1 text-2xl font-semibold text-gray-200">
-                  +20
-                </dd>
-              </div>
-
-              <div className="rounded-xl border border-gray-200 p-4">
-                <dt className="text-sm text-gray-200">Regionales ICPC</dt>
-                <dd className="mt-1 text-2xl font-semibold text-gray-200">
-                  +10
-                </dd>
-              </div>
-            </dl>
           </div>
 
           {/* RIGHT: 9. Logo */}
           <div className="relative w-full">
-            <div className="mx-auto max-w-xs sm:max-w-sm md:max-w-md lg:ml-auto">
+            <div className="mx-auto max-w-[120px] sm:max-w-60 md:max-w-80 lg:max-w-100">
               <Image
                 src="/algoritmia-logo-red-white.png"
                 alt="Logotipo de Algoritmia UP"
-                width={640}
-                height={640}
+                width={840}
+                height={840}
                 priority
                 className="h-auto w-full object-contain drop-shadow-sm"
               />
             </div>
           </div>
+        </div>
+        <div className="mt-10 lg:mt-14">
+          <HeroStats />
         </div>
       </div>
     </section>
