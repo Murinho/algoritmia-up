@@ -31,7 +31,9 @@ export default function MainNavbar() {
   };
 
   return (
-    <header className="sticky top-0 z-50 bg-[rgb(197,19,61)] text-white shadow">
+    <header
+      className="sticky top-0 z-50 bg-[rgb(197,19,61)] text-white shadow h-16 [--nav-h:64px]" // 64px = h-16
+    >
       <nav className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between">
             {/* Brand */}
