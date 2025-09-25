@@ -6,8 +6,14 @@ import Link from 'next/link';
 export default function Hero() {
   return (
     <section
-        aria-labelledby="hero-title"
-        className="relative h-screen min-h-[700px] flex items-center overflow-hidden"
+      aria-labelledby="hero-title"
+      className="
+        relative
+        min-h-[calc(100svh-var(--nav-h))]
+        pt-[calc(env(safe-area-inset-top)+var(--nav-h))]
+        flex items-center
+        overflow-hidden
+      "
     >
         {/* Background */}
         <div
