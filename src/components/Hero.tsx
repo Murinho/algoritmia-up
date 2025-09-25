@@ -9,17 +9,18 @@ export default function Hero() {
       aria-labelledby="hero-title"
       className="
         relative
-        min-h-[calc(100svh-var(--nav-h))]
-        pt-[calc(env(safe-area-inset-top)+var(--nav-h))]
+        min-h-[100dvh]       /* grow with dynamic viewport */
+        pt-[env(safe-area-inset-top)]
+        pb-[env(safe-area-inset-bottom)]
         flex items-center
-        overflow-hidden
+        /* overflow-hidden  <-- REMOVE to avoid clipping */
       "
     >
-        {/* Background */}
-        <div
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-br from-[#0b0f19] via-[#2c1e28] to-[#6b1d1b]"
-        />
+      {/* Background */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-br from-[#0b0f19] via-[#2c1e28] to-[#6b1d1b]"
+      />
 
       <div className="mx-auto max-w-7xl px-6 py-16 sm:py-20 lg:px-8 lg:py-24">
         <div className="grid grid-cols-1 items-center gap-12 lg:grid-cols-2">
@@ -28,18 +29,18 @@ export default function Hero() {
             {/* 1. Big title */}
             <h1
               id="hero-title"
-              className="text-4xl font-bold tracking-tight text-gray-900 dark:text-white sm:text-6xl"
+              className="text-4xl font-bold tracking-tight text-white sm:text-6xl"
             >
               Algoritmia UP
             </h1>
 
             {/* 2. Subtitle */}
-            <p className="mt-3 text-lg font-medium text-gray-600 dark:text-gray-300">
+            <p className="mt-3 text-lg font-medium text-gray-300">
               Universidad Panamericana campus Bonaterra
             </p>
 
             {/* 3. Description */}
-            <p className="mt-6 text-base text-gray-700 dark:text-gray-200 sm:text-lg">
+            <p className="mt-6 text-base text-gray-200 sm:text-lg">
               Únete a la comunidad de programadores más feroz de la Universidad Panamericana.
               Aprende, colabora y conquista el mundo del código con la fuerza de una pantera.
             </p>
@@ -56,7 +57,7 @@ export default function Hero() {
 
               <Link
                 href="#events"
-                className="inline-flex items-center justify-center rounded-lg border border-gray-300 px-5 py-3 text-sm font-semibold text-gray-900 transition hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 dark:border-zinc-700 dark:text-white dark:hover:bg-zinc-800"
+                className="inline-flex items-center justify-center rounded-lg border border-gray-300 px-5 py-3 text-sm font-semibold text-white transition hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
                 aria-label="Ver eventos"
               >
                 Ver eventos
@@ -65,25 +66,23 @@ export default function Hero() {
 
             {/* 6–8. Stats */}
             <dl className="mt-10 grid grid-cols-1 gap-6 sm:grid-cols-3">
-              <div className="rounded-xl border border-gray-200 p-4 dark:border-zinc-800">
-                <dt className="text-sm text-gray-500 dark:text-gray-400">Miembros</dt>
-                <dd className="mt-1 text-2xl font-semibold text-gray-900 dark:text-white">
+              <div className="rounded-xl border border-gray-200 p-4">
+                <dt className="text-sm text-gray-200">Miembros</dt>
+                <dd className="mt-1 text-2xl font-semibold text-gray-200">
                   +100
                 </dd>
               </div>
 
-              <div className="rounded-xl border border-gray-200 p-4 dark:border-zinc-800">
-                <dt className="text-sm text-gray-500 dark:text-gray-400">Big‑Tech interns</dt>
-                <dd className="mt-1 text-2xl font-semibold text-gray-900 dark:text-white">
+              <div className="rounded-xl border border-gray-200 p-4">
+                <dt className="text-sm text-gray-200">Big-tech interns</dt>
+                <dd className="mt-1 text-2xl font-semibold text-gray-200">
                   +20
                 </dd>
               </div>
 
-              <div className="rounded-xl border border-gray-200 p-4 dark:border-zinc-800">
-                <dt className="text-sm text-gray-500 dark:text-gray-400">
-                  Años de experiencia en ICPC
-                </dt>
-                <dd className="mt-1 text-2xl font-semibold text-gray-900 dark:text-white">
+              <div className="rounded-xl border border-gray-200 p-4">
+                <dt className="text-sm text-gray-200">Regionales ICPC</dt>
+                <dd className="mt-1 text-2xl font-semibold text-gray-200">
                   +10
                 </dd>
               </div>
