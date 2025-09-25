@@ -19,7 +19,7 @@ export default function Hero() {
       {/* Background */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-br from-[#0b0f19] via-[#2c1e28] to-[#6b1d1b]"
+        className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-br from-[#0D0D0D] via-[#2c1e28] to-[#C5133D]"
       />
 
       <div className="mx-auto max-w-7xl px-6 py-16 sm:py-20 lg:px-8 lg:py-24">
@@ -49,15 +49,15 @@ export default function Hero() {
             <div className="mt-8 flex flex-wrap items-center gap-3">
               <Link
                 href="#join"
-                className="inline-flex items-center justify-center rounded-lg bg-[rgb(200,165,104)] px-5 py-3 text-sm font-semibold text-white shadow-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 hover:bg-indigo-500 active:translate-y-px"
-                aria-label="Unete ahora"
+                className="inline-flex items-center justify-center rounded-lg bg-[rgb(200,165,104)] px-5 py-3 text-sm font-semibold text-white shadow-sm transition-transform duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 hover:bg-[rgb(210,165,104)] hover:scale-105 active:translate-y-px"
+                aria-label="Únete ahora"
               >
-                Unete ahora
+                Únete ahora
               </Link>
 
               <Link
                 href="#events"
-                className="inline-flex items-center justify-center rounded-lg border border-gray-300 px-5 py-3 text-sm font-semibold text-white transition hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
+                className="inline-flex items-center justify-center rounded-lg border border-gray-300 px-5 py-3 text-sm font-semibold text-white transition-transform duration-200 hover:bg-gray-700 hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
                 aria-label="Ver eventos"
               >
                 Ver eventos
@@ -93,7 +93,7 @@ export default function Hero() {
           <div className="relative w-full">
             <div className="mx-auto max-w-xs sm:max-w-sm md:max-w-md lg:ml-auto">
               <Image
-                src="/algoritmia-logo-red-white.png" // Place the file in /public
+                src="/algoritmia-logo-red-white.png"
                 alt="Logotipo de Algoritmia UP"
                 width={640}
                 height={640}
