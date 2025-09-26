@@ -64,7 +64,7 @@ export default function HeroStats() {
     aria-labelledby="stats"
     className="w-full">
       {/* Stats Row */}
-      <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+      <div className="w-full">
         <div
           id="stats-alumni"
           className="sr-only"
