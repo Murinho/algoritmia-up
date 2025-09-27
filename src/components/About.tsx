@@ -37,7 +37,7 @@ export default function About() {
         </header>
 
         {/* Hero grid */}
-        <div className="mt-12 grid grid-cols-1 items-center gap-10 lg:grid-cols-2">
+        <div className="mt-12 grid grid-cols-1 items-center gap-10 lg:grid-cols-2 lg:items-stretch">
           {/* Left: carousel */}
           <ImageCarousel
             images={[
