@@ -29,10 +29,8 @@ export default function About() {
           >
             Sobre <span className="text-[#C5133D]">Algoritmia UP</span>
           </h2>
-          <p className="mt-3 text-balance text-gray-600">
-            Somos más que un club de programación: una comunidad de estudiantes
-            apasionados por la tecnología, unidos por el espíritu de la pantera negra
-            de la Universidad Panamericana.
+          <p className="mx-auto mt-4 max-w-3xl text-xl text-gray-600">
+            Somos más que un club de programación: una comunidad de estudiantes apasionados por la tecnología, unidos por el espíritu de la pantera negra de la Universidad Panamericana.
           </p>
         </header>
 

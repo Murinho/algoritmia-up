@@ -5,7 +5,7 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 First install the necessary dependencies using:
 ```bash
-npm i -D tailwindcss postcss autoprefixer
+npm i -D tailwindcss postcss autoprefixer lucide-react
 ```
 
 First, run the development server:
