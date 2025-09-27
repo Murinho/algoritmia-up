@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import MainNavbar from "@/components/MainNavbar";
 import Hero from "@/components/Hero"
+import About from "@/components/About";
 
 export const metadata: Metadata = {
   title: "Algoritmia UP",
@@ -20,6 +21,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-dvh bg-white antialiased">
         <MainNavbar />
         <Hero />
+        <About />
         <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
           {children}
         </main>
