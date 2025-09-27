@@ -17,14 +17,8 @@ export default function MissionBadge({ title, desc, icon, className }: Props) {
 
   return (
     <div className={classes}>
-      {/* top gradient accent */}
       <div
         aria-hidden
-        className="
-          pointer-events-none absolute inset-x-0 top-0 h-[2.5px] rounded-t-2xl
-          bg-[linear-gradient(90deg,#C5133D_0%,#d946ef_35%,#f59e0b_100%)]
-          opacity-90
-        "
       />
 
       <div className="mb-2 inline-flex h-9 w-9 items-center justify-center rounded-lg bg-[#C5133D]/15">
