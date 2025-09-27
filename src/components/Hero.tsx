@@ -110,7 +110,7 @@ export default function Hero() {
         </div>
 
         {/* Stats */}
-        <div className="mt-10 lg:mt-14 items-center">
+        <div className="mt-30 lg:mt-40 items-center">
           <HeroStats />
         </div>
       </div>
