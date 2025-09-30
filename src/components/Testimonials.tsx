@@ -313,7 +313,7 @@ export default function Testimonials({
             {items.map((t, i) => (
               <li
                 key={t.id}
-                ref={(el) => (itemRefs.current[i] = el)}
+                ref={(el) => { itemRefs.current[i] = el; }}  // return void
                 className={cls('w-[85%] shrink-0 snap-start sm:w-[70%] md:w-[46%] lg:w-[32%]')}
               >
                 <TestimonialCard t={t} />
