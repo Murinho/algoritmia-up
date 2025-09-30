@@ -4,6 +4,7 @@ import MainNavbar from "@/components/MainNavbar";
 import Hero from "@/components/Hero"
 import About from "@/components/About";
 import EventsSection from "@/components/Events";
+import Testimonials from "@/components/Testimonials";
 
 export const metadata: Metadata = {
   title: "Algoritmia UP",
@@ -23,7 +24,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <MainNavbar />
         <Hero />
         <About />
-        <EventsSection/>
+        <EventsSection />
+        <Testimonials />
       </body>
     </html>
   );
