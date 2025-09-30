@@ -5,6 +5,7 @@ import Hero from "@/components/Hero"
 import About from "@/components/About";
 import EventsSection from "@/components/Events";
 import Testimonials from "@/components/Testimonials";
+import Contact from "@/components/Contact";
 
 export const metadata: Metadata = {
   title: "Algoritmia UP",
@@ -26,6 +27,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <About />
         <EventsSection />
         <Testimonials />
+        <Contact />
       </body>
     </html>
   );
