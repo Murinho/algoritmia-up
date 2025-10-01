@@ -13,6 +13,7 @@ const NAV_ITEMS = [
   { name: "Contacto", href: "#contact" },
   { name: "Historia", href: "/historia" },
   { name: "Recursos", href: "/recursos" },
+  { name: "Concursos", href: "/concursos" },
   { name: "Leaderboard", href: "/leaderboard" },
   { name: "Login", href: "/login" },
   { name: "Sign Up", href: "/signup" },
