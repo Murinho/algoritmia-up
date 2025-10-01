@@ -1,6 +1,17 @@
-export default function Home() {
+import Hero from "@/components/Hero";
+import About from "@/components/About";
+import EventsSection from "@/components/Events";
+import Testimonials from "@/components/Testimonials";
+import Contact from "@/components/Contact";
+
+export default function HomePage() {
   return (
-    <main className="min-h-dvh grid place-items-center p-8">
-    </main>
+    <>
+      <Hero />
+      <About />
+      <EventsSection />
+      <Testimonials />
+      <Contact />
+    </>
   );
 }

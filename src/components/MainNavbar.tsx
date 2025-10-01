@@ -10,10 +10,11 @@ const NAV_ITEMS = [
   { name: "Acerca", href: "/acerca" },
   { name: "Eventos", href: "/eventos" },
   { name: "Testimonios", href: "/testimonios" },
+  { name: "Contacto", href: "/contacto" },
   { name: "Historia", href: "/historia" },
   { name: "Recursos", href: "/recursos" },
   { name: "Leaderboard", href: "/leaderboard" },
-  { name: "Contacto", href: "/contacto" },
+  { name: "Sign Up", href: "/signup" },
 ];
 
 export default function MainNavbar() {
