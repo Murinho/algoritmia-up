@@ -41,7 +41,7 @@ export default function HeroStats() {
   function CompanyLogo({ src, alt }: { src: string; alt: string }) {
     return (
       <div
-        className="relative h-8 md:h-20 w-[120px] md:w-[140px]
+        className="relative h-16 md:h-20 w-[180px] md:w-[140px]
                   opacity-70 grayscale transition duration-200
                   hover:opacity-100 hover:grayscale-0
                   focus-within:opacity-100 focus-within:grayscale-0"
@@ -52,10 +52,10 @@ export default function HeroStats() {
           alt={alt}
           fill
           className="object-contain"
-          sizes="(min-width: 768px) 140px, 120px"
+          sizes="(min-width: 768px) 140px, 160px"
           priority
         />
-      </div>  
+      </div>
     );
   }
   

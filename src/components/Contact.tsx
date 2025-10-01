@@ -5,7 +5,9 @@ import { FaInstagram, FaGithub, FaLinkedin, FaTwitter } from 'react-icons/fa';
 
 export default function Contact() {
   return (
-    <section className="relative py-20 inset-0 -z-10 bg-gradient-to-tr from-[#0D0D0D] via-[#2c1e28] to-[#B5133D]">
+    <section 
+      id = "contact"
+      className="relative py-20 inset-0 -z-10 bg-gradient-to-tr from-[#0D0D0D] via-[#2c1e28] to-[#B5133D]">
       <div className="mx-auto max-w-7xl px-6 lg:px-8 grid grid-cols-1 lg:grid-cols-2 gap-12 ">
         {/* LEFT SIDE */}
         <div>

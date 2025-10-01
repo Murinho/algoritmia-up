@@ -6,11 +6,11 @@ import { useState, useEffect } from "react";
 import Image from "next/image";
 
 const NAV_ITEMS = [
-  { name: "Inicio", href: "/" },
-  { name: "Acerca", href: "/acerca" },
-  { name: "Eventos", href: "/eventos" },
-  { name: "Testimonios", href: "/testimonios" },
-  { name: "Contacto", href: "/contacto" },
+  { name: "Inicio", href: "#hero" },
+  { name: "Acerca", href: "#about" },
+  { name: "Eventos", href: "#events" },
+  { name: "Testimonios", href: "#testimonials" },
+  { name: "Contacto", href: "#contact" },
   { name: "Historia", href: "/historia" },
   { name: "Recursos", href: "/recursos" },
   { name: "Leaderboard", href: "/leaderboard" },
@@ -108,7 +108,7 @@ export default function MainNavbar() {
 
         {/* Mobile menu */}
         {open && (
-          <ul className="md:hidden pb-3 pt-2">
+          <ul className="md:hidden pb-3 pt-2 bg-[rgb(197,19,61)] text-white shadow-lg rounded-b-lg">
             {NAV_ITEMS.map(({ name, href }) => (
               <li key={href}>
                 <Link

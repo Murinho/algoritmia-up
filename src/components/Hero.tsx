@@ -7,7 +7,8 @@ import Link from 'next/link';
 export default function Hero() {
   return (
     <section
-      aria-labelledby="hero-title"
+      id="hero"
+      aria-labelledby="hero"
       className="
         relative
         min-h-[100dvh]
@@ -96,7 +97,7 @@ export default function Hero() {
 
           {/* RIGHT: Logo */}
           <div className="relative w-full">
-            <div className="mx-auto max-w-[120px] sm:max-w-60 md:max-w-80 lg:max-w-100">
+            <div className="mx-auto max-w-[250px] sm:max-w-60 md:max-w-80 lg:max-w-100">
               <Image
                 src="/algoritmia-logo-red-white.png"
                 alt="Logotipo de Algoritmia UP"

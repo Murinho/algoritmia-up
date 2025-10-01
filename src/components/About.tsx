@@ -7,7 +7,7 @@ export default function About() {
   return (
     <section
       id="about"
-      aria-labelledby="about-title"
+      aria-labelledby="about"
       className="
         relative
         py-20 sm:py-24
