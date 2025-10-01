@@ -1,21 +1,16 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import MainNavbar from "@/components/MainNavbar";
-import Hero from "@/components/Hero"
-import About from "@/components/About";
-import EventsSection from "@/components/Events";
-import Testimonials from "@/components/Testimonials";
-import Contact from "@/components/Contact";
 
 export const metadata: Metadata = {
   title: "Algoritmia UP",
   description: "Coding club of Universidad Panamericana",
 };
 
-export const viewport = {
-  width: 'device-width',
+export const viewport: Viewport = {
+  width: "device-width",
   initialScale: 1,
-  viewportFit: 'cover',
+  viewportFit: "cover",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -23,11 +18,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body className="min-h-dvh bg-white antialiased">
         <MainNavbar />
-        <Hero />
-        <About />
-        <EventsSection />
-        <Testimonials />
-        <Contact />
+        {/* Give space under the sticky navbar (h-16) */}
+        <main>{children}</main>
       </body>
     </html>
   );
