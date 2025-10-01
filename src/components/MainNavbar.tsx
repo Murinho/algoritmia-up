@@ -14,6 +14,7 @@ const NAV_ITEMS = [
   { name: "Historia", href: "/historia" },
   { name: "Recursos", href: "/recursos" },
   { name: "Leaderboard", href: "/leaderboard" },
+  { name: "Login", href: "/login" },
   { name: "Sign Up", href: "/signup" },
 ];
 
