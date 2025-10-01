@@ -108,7 +108,7 @@ export default function MainNavbar() {
 
         {/* Mobile menu */}
         {open && (
-          <ul className="md:hidden pb-3 pt-2">
+          <ul className="md:hidden pb-3 pt-2 bg-[rgb(197,19,61)] text-white shadow-lg rounded-b-lg">
             {NAV_ITEMS.map(({ name, href }) => (
               <li key={href}>
                 <Link
