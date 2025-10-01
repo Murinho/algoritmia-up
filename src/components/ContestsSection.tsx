@@ -152,11 +152,15 @@ export default function ContestsSection() {
   }
 
   return (
-    <section aria-labelledby="contests-title" className="relative py-12 sm:py-16">
+    <section aria-labelledby="contests-title" className="relative
+        min-h-[100dvh]
+        pt-[env(safe-area-inset-top)]
+        pb-[env(safe-area-inset-bottom)]
+        flex items-center"> 
       {/* Same gradient background */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-tr from-[#0D0D0D] via-[#2c1e28] to-[#C5133D]"
+        className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-br from-[#0D0D0D] via-[#2c1e28] to-[#C5133D]"
       />
 
       <div className="mx-auto max-w-7xl px-6 lg:px-8">
