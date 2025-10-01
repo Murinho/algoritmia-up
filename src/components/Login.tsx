@@ -13,20 +13,22 @@ export default function Login() {
   const [submitting, setSubmitting] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  // preload remembered email (client-only)
   useEffect(() => {
     try {
-      const saved = typeof window !== "undefined" ? localStorage.getItem("algoup_email") : null;
+      const saved =
+        typeof window !== "undefined"
+          ? localStorage.getItem("algoup_email")
+          : null;
       if (saved) {
         setEmail(saved);
         setRemember(true);
       }
     } catch {
-      /* ignore localStorage errors (Safari private mode, etc.) */
+      /* ignore storage errors */
     }
   }, []);
 
-  const onSubmit: React.FormEventHandler<HTMLFormElement> = async (e) => {
+   const onSubmit: React.FormEventHandler<HTMLFormElement> = async (e) => {
     e.preventDefault();
     setSuccessMsg(null);
     setErrors({});
@@ -59,15 +61,14 @@ export default function Login() {
         /* ignore storage errors */
       }
 
-      // TODO: replace with your real API call
-      // const res = await fetch("/api/login", { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify({ email, password }) });
-      // const data = await res.json();
-      // if (!res.ok) throw new Error(data?.message || "Credenciales inválidas");
-
+      // TODO: real API call here
       console.log("Login payload", { email, password });
       setSuccessMsg("¡Inicio de sesión válido! (Conecta este submit a tu API)");
-    } catch (err: any) {
-      setErrors({ form: err?.message || "No se pudo iniciar sesión" });
+    } catch (err) {
+      // <-- no : any
+      const message =
+        err instanceof Error ? err.message : String(err ?? "Error");
+      setErrors({ form: message || "No se pudo iniciar sesión" });
     } finally {
       setSubmitting(false);
     }
