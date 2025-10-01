@@ -7,7 +7,8 @@ import Link from 'next/link';
 export default function Hero() {
   return (
     <section
-      aria-labelledby="hero-title"
+      id="hero"
+      aria-labelledby="hero"
       className="
         relative
         min-h-[100dvh]

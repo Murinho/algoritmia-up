@@ -269,6 +269,7 @@ export default function Testimonials({
 
   return (
     <section
+      id="testimonials"
       aria-labelledby="testimonials-heading"
       className="relative overflow-hidden py-16 sm:py-20"
     >
@@ -286,8 +287,7 @@ export default function Testimonials({
           Testimonios <span className="text-[#C5133D]">Destacados</span>
         </h2>
         <p className="mx-auto mt-4 mb-4 max-w-3xl text-center text-xl text-gray-100">
-          Únete a nuestros eventos y desarrolla tus habilidades junto a la
-          comunidad de programadores más activa de la Universidad Panamericana.
+          Algunos de nuestros Alumnis y miembros destacados.
         </p>
 
         {/* Desktop arrows (right-aligned) */}
