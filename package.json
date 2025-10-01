@@ -6,6 +6,7 @@
     "dev": "next dev --turbopack",
     "dev:lan": "next dev -H 0.0.0.0 -p 3000",
     "build": "next build --turbopack",
+    "setup": "npm i -D tailwindcss postcss autoprefixer lucide-react react-icons",
     "start": "next start",
     "lint": "eslint"
   },
