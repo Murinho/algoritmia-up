@@ -165,7 +165,7 @@ export default function ResourcesSection() {
       {/* Background gradient (matches your other sections) */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-br from-[#0D0D0D] via-[#2c1e28] to-[#C5133D]"
+        className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-tr from-[#0D0D0D] via-[#2c1e28] to-[#C5133D]"
       />
 
       <div className="mx-auto max-w-7xl px-6 lg:px-8">
