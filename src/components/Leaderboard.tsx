@@ -308,7 +308,7 @@ export default function Leaderboard() {
                     colSpan={8}
                     className="px-4 py-8 text-center text-sm text-white/70"
                   >
-                    No se encontraron miembros que coincidan con "{query}".
+                    No se encontraron miembros que coincidan con {query}.
                   </td>
                 </tr>
               )}
