@@ -6,7 +6,6 @@ import {
   Calendar,
   Clock,
   MapPin,
-  Tag,
   ExternalLink,
   ListChecks,
   ChevronUp,
@@ -272,7 +271,6 @@ export default function ContestsSection() {
                             key={t}
                             className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-black/30 px-2 py-0.5 text-xs"
                           >
-                            <Tag className="h-3 w-3" />
                             {t}
                           </span>
                         ))}

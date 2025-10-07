@@ -6,14 +6,10 @@ import { useState, useEffect } from "react";
 import Image from "next/image";
 
 const NAV_ITEMS = [
-  { name: "Inicio", href: "#hero" },
-  { name: "Acerca", href: "#about" },
-  { name: "Eventos", href: "#events" },
-  { name: "Testimonios", href: "#testimonials" },
-  { name: "Contacto", href: "#contact" },
+  { name: "Inicio", href: "/" },
   { name: "Historia", href: "/historia" },
+  { name: "Eventos", href: "/eventos" },
   { name: "Recursos", href: "/recursos" },
-  { name: "Concursos", href: "/concursos" },
   { name: "Leaderboard", href: "/leaderboard" },
   { name: "Login", href: "/login" },
   { name: "Sign Up", href: "/signup" },

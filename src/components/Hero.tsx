@@ -65,7 +65,7 @@ export default function Hero() {
             {/* CTAs: primary = brand red, secondary = outline */}
             <div className="mt-8 flex flex-wrap items-center gap-3">
               <Link
-                href="#join"
+                href="/signup"
                 aria-label="Únete ahora"
                 className="
                   inline-flex items-center justify-center rounded-xl px-6 py-3
@@ -80,7 +80,7 @@ export default function Hero() {
               </Link>
 
               <Link
-                href="#events"
+                href="/eventos"
                 aria-label="Ver eventos"
                 className="
                   inline-flex items-center justify-center rounded-xl px-6 py-3
