@@ -13,6 +13,7 @@ const NAV_ITEMS = [
   { name: "Leaderboard", href: "/leaderboard" },
   { name: "Login", href: "/login" },
   { name: "Sign Up", href: "/signup" },
+  { name: "Perfil", href: "/perfil" },
 ];
 
 export default function MainNavbar() {
