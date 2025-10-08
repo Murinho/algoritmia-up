@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 
 // --- Types
@@ -83,17 +84,6 @@ const MOCK_MEMBERS: Member[] = [
     maxRating: 2701,
   },
 ];
-
-// --- Helpers
-function countryCodeToFlag(code: string): string {
-  const cc = code.toUpperCase();
-  // Map A-Z to regional indicator symbols
-  return cc
-    .replace(/[^A-Z]/g, "")
-    .split("")
-    .map((c) => String.fromCodePoint(127397 + c.charCodeAt(0)))
-    .join("");
-}
 
 function ratingColor(r: number): string {
   if (r >= 2600) return "text-red-500"; // red
@@ -276,13 +266,17 @@ export default function Leaderboard() {
                   <td className="px-4 py-3 text-sm text-white/90">{m.name}</td>
 
                   <td className="px-4 py-3 text-sm text-white/90">
-                    <span className="inline-flex items-center gap-2">
-                      <span className="text-lg" title={m.countryCode}>
-                        {countryCodeToFlag(m.countryCode)}
-                      </span>
-                      <span className="text-white/70">{m.countryCode}</span>
-                    </span>
+                    <div className="flex items-center gap-2">
+                        <Image
+                        src={`https://flagcdn.com/24x18/${m.countryCode.toLowerCase()}.png`}
+                        alt={m.countryCode}
+                        width={24}
+                        height={18}
+                        />
+                        <span className="text-white/70">{m.countryCode}</span>
+                    </div>
                   </td>
+
 
                   <td className="px-4 py-3 text-sm">
                     <span className={`rounded-md bg-white/5 px-2 py-1 font-semibold ${ratingColor(

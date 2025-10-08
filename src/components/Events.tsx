@@ -166,32 +166,6 @@ export default function EventsSection() {
             <EventCard key={e.id} e={e} />
           ))}
         </div>
-
-        {/* CTA */}
-        <div className="text-center">
-          <div className="mx-auto max-w-4xl rounded-2xl bg-gradient-to-r from-black via-[#7a0f25] to-black p-8 text-white">
-            <h3 className="text-2xl font-bold">¿Tienes una idea para un evento?</h3>
-            <p className="mt-2 text-gray-300">
-              Queremos escucharte. Propón workshops, charlas o competencias que te
-              gustaría ver en el club.
-            </p>
-
-            <div className="mt-6 flex flex-col items-center justify-center gap-4 sm:flex-row">
-              <a
-                href="#"
-                className="inline-flex items-center justify-center rounded-xl bg-[#C5133D] px-5 py-2.5 text-sm font-semibold text-white transition hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-[#C5133D]/40"
-              >
-                Proponer Evento
-              </a>
-              <a
-                href="#"
-                className="inline-flex items-center justify-center rounded-xl border border-yellow-400 px-5 py-2.5 text-sm font-semibold text-yellow-400 transition hover:bg-yellow-400 hover:text-black focus:outline-none focus:ring-2 focus:ring-yellow-400/40"
-              >
-                Ver Calendario Completo
-              </a>
-            </div>
-          </div>
-        </div>
       </div>
     </section>
   );

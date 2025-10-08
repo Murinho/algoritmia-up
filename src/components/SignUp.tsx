@@ -1,8 +1,5 @@
 "use client";
 
-// Lightweight version: no shadcn/ui, no zod — just React + Tailwind + native inputs
-// Keeps the same Algoritmia UP visual style and validations in plain TS/JS.
-
 import { useMemo, useState } from "react";
 
 const MONTHS = [
@@ -30,6 +27,42 @@ const DEGREE_PROGRAMS = [
   "Matemáticas Aplicadas",
   "Licenciatura en Administración y Finanzas",
   "Otro",
+];
+
+// NEW: country options (ISO 3166-1 alpha-2, lowercase, ideal for FlagCDN)
+const COUNTRY_OPTIONS = [
+  { code: "mx", name: "México" },
+  { code: "ar", name: "Argentina" },
+  { code: "bo", name: "Bolivia" },
+  { code: "br", name: "Brasil" },
+  { code: "cl", name: "Chile" },
+  { code: "co", name: "Colombia" },
+  { code: "cr", name: "Costa Rica" },
+  { code: "cu", name: "Cuba" },
+  { code: "do", name: "República Dominicana" },
+  { code: "ec", name: "Ecuador" },
+  { code: "sv", name: "El Salvador" },
+  { code: "gt", name: "Guatemala" },
+  { code: "hn", name: "Honduras" },
+  { code: "ni", name: "Nicaragua" },
+  { code: "pa", name: "Panamá" },
+  { code: "py", name: "Paraguay" },
+  { code: "pe", name: "Perú" },
+  { code: "uy", name: "Uruguay" },
+  { code: "ve", name: "Venezuela" },
+  { code: "us", name: "Estados Unidos" },
+  { code: "ca", name: "Canadá" },
+  { code: "es", name: "España" },
+  { code: "fr", name: "Francia" },
+  { code: "de", name: "Alemania" },
+  { code: "gb", name: "Reino Unido" },
+  { code: "it", name: "Italia" },
+  { code: "pt", name: "Portugal" },
+  { code: "jp", name: "Japón" },
+  { code: "kr", name: "Corea del Sur" },
+  { code: "cn", name: "China" },
+  { code: "in", name: "India" },
+  { code: "other", name: "Otro" },
 ];
 
 // Regex rules
@@ -76,6 +109,9 @@ export default function SignUp() {
 
     const password = String(fd.get("password") || "");
 
+    // NEW: country (ISO-2 lowercase or "other")
+    const country = String(fd.get("country") || "");
+
     const nextErrors: Record<string, string> = {};
 
     // Fullname
@@ -101,6 +137,9 @@ export default function SignUp() {
     // Degree
     if (!degree) nextErrors.degree = "Choose a program";
 
+    // NEW: Country validation
+    if (!country) nextErrors.country = "Selecciona tu país de origen";
+
     // Entry & Graduation order
     if (!entryMonth || !entryYear) nextErrors.entry = "Select month and year";
     if (!gradMonth || !gradYear) nextErrors.grad = "Select month and year";
@@ -122,6 +161,8 @@ export default function SignUp() {
       email,
       codeforces,
       degree,
+      // NEW: persist ISO-2 code for easy flag rendering with FlagCDN
+      country, // e.g., "mx"
       birthdate: `${birthYear}-${String(birthMonth).padStart(2, "0")}-${String(birthDay).padStart(2, "0")}`,
       entryDate: `${entryYear}-${String(entryMonth).padStart(2, "0")}-01`,
       expectedGraduation: `${gradYear}-${String(gradMonth).padStart(2, "0")}-01`,
@@ -139,19 +180,19 @@ export default function SignUp() {
     }
   };
 
-
   return (
     <section
-    aria-labelledby="signup-title"
-    className="
+      aria-labelledby="signup-title"
+      className="
         relative
+        min-h[100dvh]
         min-h-[100dvh]
         pt-[env(safe-area-inset-top)]
         pb-[env(safe-area-inset-bottom)]
         flex items-center
       "
     >
-    <div aria-hidden className="absolute inset-0 -z-10 bg-gradient-to-br from-[#0D0D0D] via-[#2c1e28] to-[#C5133D]" />
+      <div aria-hidden className="absolute inset-0 -z-10 bg-gradient-to-br from-[#0D0D0D] via-[#2c1e28] to-[#C5133D]" />
       <div className="mx-auto max-w-3xl px-6 overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-md shadow-[0_10px_40px_rgba(0,0,0,0.25)]">
         {/* Top accent bar */}
         <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-[#C5133D] via-fuchsia-500 to-amber-400" />
@@ -265,15 +306,32 @@ export default function SignUp() {
             </div>
           </div>
 
-          {/* Password */}
-          <div>
-            <label htmlFor="password" className="text-white">Contraseña</label>
-            <input id="password" name="password" type="password" required placeholder="••••••••" className="mt-2 w-full rounded-md border border-white/10 bg-white/10 px-3 py-2 text-white placeholder:text-white/50 focus:outline-none focus:ring-2 focus:ring-[#C5133D]/60" />
-            <p className="mt-1 text-[11px] text-white/70">8–20 caracteres, incluye al menos 1 mayúscula, 1 símbolo y 1 dígito.</p>
-            {errors.password && <p className="mt-1 text-xs text-red-300">{errors.password}</p>}
+          {/* Country of origin and password*/}
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div>
+              <label htmlFor="country" className="text-white">País de origen</label>
+              <select id="country" name="country" required defaultValue="" className="mt-2 w-full rounded-md border border-white/10 bg-white/10 px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-[#C5133D]/60">
+                <option value="" disabled>Selecciona tu país</option>
+                {COUNTRY_OPTIONS.map((c) => (
+                  <option key={c.code} value={c.code} className="bg-[#1a1a1a]">{c.name}</option>
+                ))}
+              </select>
+              {errors.country && <p className="mt-1 text-xs text-red-300">{errors.country}</p>}
+            </div>
+            <div>
+              <label htmlFor="password" className="text-white">Contraseña</label>
+              <input id="password" name="password" type="password" required placeholder="••••••••" className="mt-2 w-full rounded-md border border-white/10 bg-white/10 px-3 py-2 text-white placeholder:text-white/50 focus:outline-none focus:ring-2 focus:ring-[#C5133D]/60" />
+              <p className="mt-1 text-[11px] text-white/70">8–20 caracteres, incluye al menos 1 mayúscula, 1 símbolo y 1 dígito.</p>
+              {errors.password && <p className="mt-1 text-xs text-red-300">{errors.password}</p>}
+            </div>
+            <div className="hidden md:block" />
           </div>
 
-          <button type="submit" disabled={submitting} className="ml-auto mt-2 inline-flex items-center justify-center rounded-2xl bg-[#C5133D] px-4 py-2 font-medium text-white transition hover:bg-[#a01032] disabled:opacity-60">
+          <button
+            type="submit"
+            disabled={submitting}
+            className="ml-auto mt-2 inline-flex items-center justify-center rounded-2xl bg-[#C5133D] px-4 py-2 font-medium text-white transition hover:bg-[#a01032] disabled:opacity-60"
+          >
             {submitting ? "Enviando…" : "Crear cuenta"}
           </button>
         </form>
