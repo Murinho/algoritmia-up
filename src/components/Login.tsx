@@ -156,7 +156,7 @@ export default function Login() {
                   />
                   Recuérdame
                 </label>
-                <a href="/forgot-password" className="text-sm text-white/80 underline-offset-2 hover:underline">
+                <a href="/olvide-contrasena" className="text-sm text-white/80 underline-offset-2 hover:underline">
                   ¿Olvidaste tu contraseña?
                 </a>
               </div>
