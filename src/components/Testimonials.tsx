@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 
+// 1) Extend the type
 type Testimonial = {
   id: string;
   name: string;
@@ -11,7 +12,12 @@ type Testimonial = {
   quote: string;
   avatarUrl: string;
   tags?: string[];
-  links?: { linkedin?: string; github?: string; web?: string };
+  links?: {
+    linkedin?: string;
+    github?: string;
+    web?: string;
+    codeforces?: string; // ✅ NEW
+  };
 };
 
 const TESTIMONIALS: Testimonial[] = [
@@ -24,7 +30,7 @@ const TESTIMONIALS: Testimonial[] = [
       'Algoritmia UP me dio una red increíble y la confianza para liderar proyectos reales. Aprendí más organizando workshops que en cualquier otra actividad.',
     avatarUrl: 'https://i.pravatar.cc/160?img=64',
     tags: ['Full Stack', 'Comunidades', 'Mentoría'],
-    links: { linkedin: 'https://linkedin.com', github: 'https://github.com' },
+    links: { linkedin: 'https://linkedin.com', github: 'https://github.com', codeforces: 'https://codeforces.com/profile/Murinho' },
   },
   {
     id: 'carlos',
@@ -88,6 +94,18 @@ const QuoteIcon = (props: React.SVGProps<SVGSVGElement>) => (
 
 const cls = (...c: Array<string | false | null | undefined>) => c.filter(Boolean).join(' ');
 
+const toCfUrl = (v: string) =>
+  /^https?:\/\//i.test(v) ? v : `https://codeforces.com/profile/${v.replace(/^@/, '')}`;
+
+const CodeforcesIcon = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" {...props}>
+    <rect x="3"  y="11" width="4" height="8"  rx="1" />
+    <rect x="10" y="6"  width="4" height="13" rx="1" />
+    <rect x="17" y="8"  width="4" height="11" rx="1" />
+  </svg>
+);
+
+
 function TestimonialCard({ t }: { t: Testimonial }) {
   return (
     <article
@@ -142,7 +160,7 @@ function TestimonialCard({ t }: { t: Testimonial }) {
           </div>
         )}
 
-        {(t.links?.linkedin || t.links?.github || t.links?.web) && (
+        {(t.links?.linkedin || t.links?.github || t.links?.web || t.links?.codeforces) && (
           <div className="mt-4 flex items-center gap-3 text-zinc-400">
             {t.links.linkedin && (
               <a
@@ -185,6 +203,17 @@ function TestimonialCard({ t }: { t: Testimonial }) {
                 <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor" aria-hidden="true">
                   <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm7.93 9h-3.17a15.2 15.2 0 0 0-1.06-4.39A8.02 8.02 0 0 1 19.93 11zM12 4c.83 0 2.46 2.3 3.1 6H8.9C9.54 6.3 11.17 4 12 4zM6.3 6.61A15.2 15.2 0 0 0 5.24 11H2.07a8.02 8.02 0 0 1 4.23-4.39zM2.07 13h3.17c.2 1.59.62 3.06 1.06 4.39A8.02 8.02 0 0 1 2.07 13zm6.83 0h6.2c-.64 3.7-2.27 6-3.1 6s-2.46-2.3-3.1-6zM18.76 13h3.17a8.02 8.02 0 0 1-4.23 4.39c.44-1.33.86-2.8 1.06-4.39z" />
                 </svg>
+              </a>
+            )}
+            {t.links?.codeforces && (
+              <a
+                href={toCfUrl(t.links.codeforces)}
+                target="_blank"
+                rel="noreferrer"
+                aria-label={`Codeforces de ${t.name}`}
+                className="transition hover:text-zinc-200"
+              >
+                <CodeforcesIcon className="h-5 w-5" />
               </a>
             )}
           </div>
