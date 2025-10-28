@@ -40,3 +40,23 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+## Python API
+
+A lightweight FastAPI server lives in `Api/algoritmia-api.py`.
+
+- Install dependencies: `pip install -r Api/requirements.txt`
+- Run locally: `python Api/algoritmia-api.py`
+- Test endpoints:
+  - `GET http://localhost:8000/health`
+  - `GET http://localhost:8000/version`
+  - `GET http://localhost:8000/leaderboard`
+  - `POST http://localhost:8000/echo`
+  - `POST http://localhost:8000/init` (runs one-time init; accepts `?force=true` to re-run)
+  - `GET http://localhost:8000/init/status`
+
+Environment:
+- Set `DATABASE_URL` to your PostgreSQL connection string (e.g. `postgresql://user:password@localhost:5432/mydb`).
+  The `POST /init` endpoint will create the `public.leaderboard` table if it does not exist.
+
+The API enables CORS for `http://localhost:3000` by default so the Next.js app can call it during development.
