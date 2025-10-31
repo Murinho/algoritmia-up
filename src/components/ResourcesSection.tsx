@@ -13,8 +13,17 @@ import {
   Search,
   ChevronUp,
   ChevronDown,
+  Plus,
+  Book,
 } from 'lucide-react';
 
+// ⬇️ Import the dialog and its types
+import ResourceCreateDialog, {
+  type Resource as DialogResource,
+  type ResourceType as DialogResourceType,
+} from '@/components/ResourceCreateDialog';
+
+// — Your table types —
 type ResourceType =
   | 'pdf'
   | 'blog'
@@ -22,7 +31,8 @@ type ResourceType =
   | 'link'
   | 'sheet'
   | 'slideshow'
-  | 'video';
+  | 'video'
+  | 'book'
 
 type Resource = {
   id: string;
@@ -44,9 +54,10 @@ const TYPE_ICON: Record<ResourceType, JSX.Element> = {
   sheet: <SheetIcon className="h-4 w-4" />,
   slideshow: <Presentation className="h-4 w-4" />,
   video: <Video className="h-4 w-4" />,
+  book: <Book className="h-4 w-4" />
 };
 
-const seed: Resource[] = [
+const seedResources: Resource[] = [
   {
     id: 'r1',
     type: 'notebook',
@@ -97,13 +108,42 @@ function Stars({ n }: { n: number }) {
 type SortKey = keyof Pick<Resource, 'type' | 'title' | 'difficulty' | 'addedBy' | 'createdAt'>;
 type SortState = { key: SortKey; dir: 'asc' | 'desc' };
 
+// ⬇️ Map dialog’s ResourceType → table’s lowercase ResourceType
+const mapType = (t: DialogResourceType): ResourceType => {
+  switch (t) {
+    case 'PDF':
+      return 'pdf';
+    case 'Blog':
+    case 'Article':
+      return 'blog';
+    case 'Notebook':
+      return 'notebook';
+    case 'Link':
+      return 'link';
+    case 'Sheet':
+      return 'sheet';
+    case 'Slideshow':
+      return 'slideshow';
+    case 'Video':
+      return 'video';
+    case 'Book':
+    case 'Repo':
+    case 'Other':
+    default:
+      return 'link';
+  }
+};
+
 export default function ResourcesSection() {
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<SortState>({ key: 'createdAt', dir: 'desc' });
 
+  const [resources, setResources] = useState<Resource[]>(seedResources);
+  const [openCreate, setOpenCreate] = useState(false);
+
   const data = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const filtered = seed.filter((r) => {
+    const filtered = resources.filter((r) => {
       if (!q) return true;
       return (
         r.title.toLowerCase().includes(q) ||
@@ -131,11 +171,11 @@ export default function ResourcesSection() {
     });
 
     return sorted;
-  }, [query, sort]);
+  }, [query, sort, resources]); // ⬅️ include resources
 
   function toggleSort(key: SortKey) {
     setSort((prev) =>
-      prev.key === key ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }
+      prev.key === key ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' },
     );
   }
 
@@ -151,6 +191,22 @@ export default function ResourcesSection() {
         {active ? (sort.dir === 'asc' ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />) : null}
       </button>
     );
+  }
+
+  // When a resource is created in the dialog, add it to the table
+  function handleCreate(newResource: DialogResource) {
+    const mapped: Resource = {
+      id: newResource.id,
+      type: mapType(newResource.type),
+      title: newResource.title,
+      url: newResource.url,
+      topic: newResource.topic,
+      difficulty: newResource.difficulty,
+      addedBy: newResource.addedBy,
+      createdAt: newResource.createdAt,
+      notes: newResource.notes,
+    };
+    setResources((prev) => [mapped, ...prev]);
   }
 
   return (
@@ -199,8 +255,16 @@ export default function ResourcesSection() {
               />
             </div>
 
-            <div className="text-xs text-white/80">
-              {data.length} resultado{data.length === 1 ? '' : 's'}
+            <div className="flex items-center gap-3">
+              <div className="text-xs text-white/80">{data.length} resultado{data.length === 1 ? '' : 's'}</div>
+
+              <button
+                onClick={() => setOpenCreate(true)}
+                className="inline-flex items-center gap-2 rounded-xl bg-[#C5133D] px-4 py-2 text-sm font-medium text-white hover:brightness-110 transition"
+              >
+                <Plus className="h-4 w-4" />
+                Crear Recurso
+              </button>
             </div>
           </div>
 
@@ -325,6 +389,14 @@ export default function ResourcesSection() {
           Tip: escribe “graphs”, “dp”, “video”, “pdf”, etc. en la búsqueda para filtrar rápido.
         </p>
       </div>
+
+      {/* ⬇️ The dialog itself */}
+      <ResourceCreateDialog
+        open={openCreate}
+        onClose={() => setOpenCreate(false)}
+        onCreate={handleCreate}
+        defaultAddedBy="Algoritmia UP"
+      />
     </section>
   );
 }
