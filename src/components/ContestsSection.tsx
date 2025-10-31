@@ -211,13 +211,12 @@ export default function ContestsSection() {
             <div className="flex items-center gap-3">
               <div className="text-xs text-white/80">{data.length} resultado{data.length === 1 ? '' : 's'}</div>
 
-              {/* ⬇️ New: Create button */}
               <button
                 onClick={() => setOpenCreate(true)}
                 className="inline-flex items-center gap-2 rounded-xl bg-[#C5133D] px-4 py-2 text-sm font-medium text-white hover:brightness-110 transition"
               >
                 <Plus className="h-4 w-4" />
-                Create Contest
+                Crear Contest
               </button>
             </div>
           </div>

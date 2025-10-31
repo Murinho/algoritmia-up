@@ -329,7 +329,7 @@ export default function ContestCreateDialog({
           <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
             <div className="flex items-center gap-2">
               <Trophy className="text-zinc-200" size={18} />
-              <h2 className="text-zinc-100 font-semibold">Create Contest</h2>
+              <h2 className="text-zinc-100 font-semibold">Crear Concurso</h2>
             </div>
             <button
               onClick={onClose}
@@ -514,7 +514,7 @@ export default function ContestCreateDialog({
                 disabled={submitting}
                 className="px-4 py-2 rounded-xl text-white bg-[#C5133D] hover:brightness-110 disabled:opacity-60 transition"
               >
-                {submitting ? 'Creating…' : 'Create Contest'}
+                {submitting ? 'Creando…' : 'Create Concurso'}
               </button>
             </div>
           </form>
