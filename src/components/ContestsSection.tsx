@@ -11,24 +11,32 @@ import {
   ChevronUp,
   ChevronDown,
   Trophy,
+  Plus,
 } from 'lucide-react';
 
-type Platform = 'Codeforces' | 'Vjudge' | 'Kattis' | 'SPOJ' | 'Leetcode';
-type ContestFormat = 'ICPC' | 'IOI';
+// ⬇️ Import the dialog (adjust the path if yours is different)
+import ContestCreateDialog, {
+  type Contest as DialogContest,
+  type Platform as DialogPlatform,
+  type ContestFormat as DialogContestFormat,
+} from '@/components/ContestCreateDialog';
+
+// Keep local types in sync with the dialog to avoid TS union issues
+type Platform = DialogPlatform;
+type ContestFormat = DialogContestFormat;
 
 type Contest = {
-  // id is hidden (not rendered)
   id: string;
   title: string;
   platform: Platform;
   url: string;
-  tags: string[];           // multiple
+  tags: string[];
   difficulty: 1 | 2 | 3 | 4 | 5;
-  format: ContestFormat;    // ICPC / IOI
-  startsAt: string;         // ISO
-  endsAt: string;           // ISO
+  format: ContestFormat;
+  startsAt: string;
+  endsAt: string;
   location: string;
-  season: string;           // e.g., "Fall 2025"
+  season: string;
 };
 
 const seedContests: Contest[] = [
@@ -95,9 +103,13 @@ export default function ContestsSection() {
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<SortState>({ key: 'startsAt', dir: 'desc' });
 
+  // ⬇️ New: local state for data + create dialog state
+  const [contests, setContests] = useState<Contest[]>(seedContests);
+  const [openCreate, setOpenCreate] = useState(false);
+
   const data = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const filtered = seedContests.filter((c) => {
+    const filtered = contests.filter((c) => {
       if (!q) return true;
       return (
         c.title.toLowerCase().includes(q) ||
@@ -128,7 +140,7 @@ export default function ContestsSection() {
     });
 
     return sorted;
-  }, [query, sort]);
+  }, [query, sort, contests]);
 
   function toggleSort(key: SortKey) {
     setSort((prev) =>
@@ -150,12 +162,20 @@ export default function ContestsSection() {
     );
   }
 
+  // ⬇️ When a contest is created in the dialog, add it to the table
+  function handleCreate(newContest: DialogContest) {
+    // optimistic prepend; keep type compatibility
+    setContests((prev) => [{ ...newContest }, ...prev]);
+  }
+
+  // default season suggestion (e.g., "Fall 2025")
+  const defaultSeason = 'Fall 2025';
+
   return (
-    <section aria-labelledby="contests-title" className="relative
-        min-h-[100dvh]
-        pt-[env(safe-area-inset-top)]
-        pb-[env(safe-area-inset-bottom)]
-        flex items-center"> 
+    <section
+      aria-labelledby="contests-title"
+      className="relative min-h-[100dvh] pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] flex items-center"
+    >
       {/* Same gradient background */}
       <div
         aria-hidden="true"
@@ -168,9 +188,7 @@ export default function ContestsSection() {
           <h2 id="contests-title" className="text-center text-3xl font-semibold tracking-tight text-white sm:text-4xl">
             Contests
           </h2>
-          <p className="mt-2 text-center text-white/80">
-            Rondas de práctica y selectivos organizados por la comunidad.
-          </p>
+          <p className="mt-2 text-center text-white/80">Rondas de práctica y selectivos organizados por la comunidad.</p>
         </div>
 
         {/* Card shell */}
@@ -190,8 +208,17 @@ export default function ContestsSection() {
               />
             </div>
 
-            <div className="text-xs text-white/80">
-              {data.length} resultado{data.length === 1 ? '' : 's'}
+            <div className="flex items-center gap-3">
+              <div className="text-xs text-white/80">{data.length} resultado{data.length === 1 ? '' : 's'}</div>
+
+              {/* ⬇️ New: Create button */}
+              <button
+                onClick={() => setOpenCreate(true)}
+                className="inline-flex items-center gap-2 rounded-xl bg-[#C5133D] px-4 py-2 text-sm font-medium text-white hover:brightness-110 transition"
+              >
+                <Plus className="h-4 w-4" />
+                Create Contest
+              </button>
             </div>
           </div>
 
@@ -354,6 +381,14 @@ export default function ContestsSection() {
           Tip: prueba “ICPC”, “IOI”, “Codeforces”, “graphs”, “UP”, “Remoto”, “Fall 2025”, etc.
         </p>
       </div>
+
+      {/* ⬇️ Create dialog */}
+      <ContestCreateDialog
+        open={openCreate}
+        onClose={() => setOpenCreate(false)}
+        onCreate={handleCreate}
+        defaultSeason={defaultSeason}
+      />
     </section>
   );
 }
