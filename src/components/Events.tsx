@@ -1,73 +1,19 @@
-// app/components/Events.tsx
-import Image from "next/image";
-import { Calendar, MapPin, Clock, Users, ArrowRight } from "lucide-react";
+'use client';
 
-type EventItem = {
-  id: number;
-  title: string;
-  date: string;
-  time: string;
-  location: string;
-  description: string;
-  image: string;
-  status: "Próximo" | "Disponible" | "Abierto";
-  participants: string;
-  href?: string;
-};
+import Image from 'next/image';
+import { Calendar, MapPin, Clock, Users, ArrowRight } from 'lucide-react';
+import { useState } from 'react';
+import CreateEventButton from './CreateEventButton';
+import type { EventItem } from './EventCreateDialog';
 
-const EVENTS: EventItem[] = [
-    {
-    id: 1,
-    title: "Copa Algoritmia",
-    date: "5 Abril, 2024",
-    time: "2:00 PM – 5:00 PM",
-    location: "Aula Byte C001",
-    description:
-      "Demuestra tus habilidades resolviendo problemas algorítmicos complejos.",
-    image:
-      "https://images.unsplash.com/photo-1565687981296-535f09db714e?q=80&w=1170&auto=format&fit=crop",
-    status: "Abierto",
-    participants: "Registro abierto",
-    href: "#",
-  },
-  {
-    id: 2,
-    title: "Workshop: Segment Trees",
-    date: "22 Marzo, 2024",
-    time: "4:00 PM – 7:00 PM",
-    location: "Laboratorio de Sistemas",
-    description:
-      "Aprende los usos y aplicaciones de Segment Trees and programación competitiva.",
-    image:
-      "https://images.unsplash.com/photo-1750020113706-b2238de0f18f?q=80&w=1332&auto=format&fit=crop",
-    status: "Disponible",
-    participants: "45/50 lugares",
-    href: "#",
-  },
-  {
-    id: 3,
-    title: "Hackathon UP 2025",
-    date: "15–17 Marzo, 2024",
-    time: "9:00 AM – 6:00 PM",
-    location: "Centro de Innovación UP",
-    description:
-      "48 horas de programación intensiva donde desarrollarás soluciones innovadoras.",
-    image:
-      "https://images.unsplash.com/photo-1515879218367-8466d910aaa4?q=80&w=1169&auto=format&fit=crop",
-    status: "Próximo",
-    participants: "120+ registrados",
-    href: "#",
-  },
-];
-
-function statusClasses(s: EventItem["status"]) {
-  if (s === "Próximo") return "bg-red-100 text-red-800";
-  if (s === "Disponible") return "bg-yellow-100 text-yellow-800";
-  return "bg-gray-100 text-gray-800";
+function statusClasses(s: EventItem['status']) {
+  if (s === 'Próximo') return 'bg-red-100 text-red-800';
+  if (s === 'Disponible') return 'bg-yellow-100 text-yellow-800';
+  return 'bg-gray-100 text-gray-800';
 }
 
 function CardContainer(props: React.HTMLAttributes<HTMLDivElement>) {
-  const { className = "", ...rest } = props;
+  const { className = '', ...rest } = props;
   return (
     <div
       className={`overflow-hidden rounded-2xl border-2 border-gray-200 bg-white transition-all duration-300 hover:border-[#C5133D]/40 hover:shadow-xl ${className}`}
@@ -131,7 +77,7 @@ function EventCard({ e }: { e: EventItem }) {
         </div>
 
         <a
-          href={e.href ?? "#"}
+          href={e.href ?? '#'}
           className="group/button inline-flex w-full items-center justify-center gap-2 rounded-xl bg-black px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#C5133D] focus:outline-none focus:ring-2 focus:ring-[#C5133D]/40"
         >
           Registrarse
@@ -143,11 +89,59 @@ function EventCard({ e }: { e: EventItem }) {
 }
 
 export default function EventsSection() {
+  const [events, setEvents] = useState<EventItem[]>([
+    {
+      id: 1,
+      title: 'Copa Algoritmia',
+      date: '5 Abril, 2024',
+      time: '2:00 PM – 5:00 PM',
+      location: 'Aula Byte C001',
+      description:
+        'Demuestra tus habilidades resolviendo problemas algorítmicos complejos.',
+      image:
+        'https://images.unsplash.com/photo-1565687981296-535f09db714e?q=80&w=1170&auto=format&fit=crop',
+      status: 'Abierto',
+      participants: 'Registro abierto',
+      href: '#',
+    },
+    {
+      id: 2,
+      title: 'Workshop: Segment Trees',
+      date: '22 Marzo, 2024',
+      time: '4:00 PM – 7:00 PM',
+      location: 'Laboratorio de Sistemas',
+      description:
+        'Aprende los usos y aplicaciones de Segment Trees en programación competitiva.',
+      image:
+        'https://images.unsplash.com/photo-1750020113706-b2238de0f18f?q=80&w=1332&auto=format&fit=crop',
+      status: 'Disponible',
+      participants: '45/50 lugares',
+      href: '#',
+    },
+    {
+      id: 3,
+      title: 'Hackathon UP 2025',
+      date: '15–17 Marzo, 2024',
+      time: '9:00 AM – 6:00 PM',
+      location: 'Centro de Innovación UP',
+      description:
+        '48 horas de programación intensiva donde desarrollarás soluciones innovadoras.',
+      image:
+        'https://images.unsplash.com/photo-1515879218367-8466d910aaa4?q=80&w=1169&auto=format&fit=crop',
+      status: 'Próximo',
+      participants: '120+ registrados',
+      href: '#',
+    },
+  ]);
+
+  // Example user role (in real app you’d get this from session or context)
+  const userRole: 'user' | 'coach' | 'admin' = 'coach';
+
   return (
     <section id="events" className="bg-gray-50 py-20">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         {/* Header */}
-        <div className="mb-16 text-center">
+        <div className="mb-10 text-center">
           <h2
             id="about-title"
             className="text-3xl font-extrabold tracking-tight text-gray-800 sm:text-4xl"
@@ -160,9 +154,17 @@ export default function EventsSection() {
           </p>
         </div>
 
+        {/* Create Button */}
+        <div className="flex justify-end mb-10">
+          <CreateEventButton
+            userRole={userRole}
+            onCreate={(newEvent) => setEvents((prev) => [newEvent, ...prev])}
+          />
+        </div>
+
         {/* Grid */}
-        <div className="mb-12 grid gap-8 md:grid-cols-2 lg:grid-cols-3">
-          {EVENTS.map((e) => (
+        <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
+          {events.map((e) => (
             <EventCard key={e.id} e={e} />
           ))}
         </div>
