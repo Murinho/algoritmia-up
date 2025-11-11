@@ -1,10 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { loginLocal } from "@/lib/auth";   
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function Login() {
+  const router = useRouter();
+
   const [email, setEmail] = useState("");           // controlled
   const [password, setPassword] = useState("");     // controlled
   const [remember, setRemember] = useState(false);
@@ -28,7 +32,7 @@ export default function Login() {
     }
   }, []);
 
-   const onSubmit: React.FormEventHandler<HTMLFormElement> = async (e) => {
+  const onSubmit: React.FormEventHandler<HTMLFormElement> = async (e) => {
     e.preventDefault();
     setSuccessMsg(null);
     setErrors({});
@@ -40,11 +44,9 @@ export default function Login() {
     } else if (!email.toLowerCase().endsWith("@up.edu.mx")) {
       nextErrors.email = "El correo debe terminar en @up.edu.mx";
     }
-
     if (password.length < 8) {
       nextErrors.password = "La contraseña debe tener al menos 8 caracteres";
     }
-
     if (Object.keys(nextErrors).length) {
       setErrors(nextErrors);
       return;
@@ -57,18 +59,33 @@ export default function Login() {
       try {
         if (remember) localStorage.setItem("algoup_email", email);
         else localStorage.removeItem("algoup_email");
-      } catch {
-        /* ignore storage errors */
-      }
+      } catch {/* ignore */}
 
-      // TODO: real API call here
-      console.log("Login payload", { email, password });
-      setSuccessMsg("¡Inicio de sesión válido! (Conecta este submit a tu API)");
-    } catch (err) {
-      // <-- no : any
-      const message =
-        err instanceof Error ? err.message : String(err ?? "Error");
-      setErrors({ form: message || "No se pudo iniciar sesión" });
+      // Real API call
+      const res = await loginLocal(email, password, remember);
+
+      // TEMP session handling:
+      // Ideally the backend sets an HttpOnly cookie. Until then, you can keep the session id in memory or storage.
+      try { sessionStorage.setItem("algoup_session_id", String(res.session?.id ?? "")); } catch {/* ignore */}
+
+      setSuccessMsg("¡Sesión iniciada!");
+      
+      setTimeout(() => {
+        router.push("/perfil");
+      }, 2000);
+    } catch (err: any) {
+      const status = err?.status as number | undefined;
+      const detail = err?.message as string | undefined;
+
+      if (status === 401) {
+        setErrors({ form: "Credenciales inválidas. Revisa tu correo y contraseña." });
+      } else if (status === 409) {
+        setErrors({ form: detail || "Conflicto al iniciar sesión." });
+      } else if (status === 422) {
+        setErrors({ form: "Datos inválidos. Verifica el formulario." });
+      } else {
+        setErrors({ form: detail || "No se pudo iniciar sesión." });
+      }
     } finally {
       setSubmitting(false);
     }

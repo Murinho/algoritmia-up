@@ -2,6 +2,9 @@ import os
 import time
 from threading import Lock
 from typing import Any, Dict, Optional
+import logging
+logger = logging.getLogger("alg-init")
+logging.basicConfig(level=logging.INFO)
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -15,11 +18,11 @@ from .tables import (
     auth_identities,
     roles,
     user_roles,
-    sessions,
     email_verification_tokens,
     password_reset_tokens,
     audit_logs,
     leaderboard,
+    auth,
 )
 
 
@@ -30,21 +33,29 @@ def create_app() -> FastAPI:
         description="Backend endpoints for the Algoritmia website.",
     )
 
+    # ---- CORS (with credentials) ----
     default_origins = [
         "http://localhost:3000",
         "http://127.0.0.1:3000",
     ]
-
+    # Comma-separated extra origins (exact matches)
     extra_origins_env = os.getenv("ALLOWED_ORIGINS", "").strip()
-    extra_origins = [o for o in (x.strip() for x in extra_origins_env.split(",")) if o]
+    extra_origins = [o.strip() for o in extra_origins_env.split(",") if o.strip()]
+
+    # Optional regex for hosts like Vercel previews:
+    origin_regex = os.getenv("ALLOWED_ORIGIN_REGEX", "").strip() or None
+
+    allow_origins = list(dict.fromkeys(default_origins + extra_origins))  # merge & dedupe
 
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=(extra_origins or default_origins),
-        allow_credentials=True,
+        allow_origins=allow_origins,       # exact matches
+        allow_origin_regex=origin_regex,   # optional regex
+        allow_credentials=True,            # REQUIRED for cookies
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    # ---------------------------------
 
     # Health/Version
     @app.get("/health")
@@ -61,7 +72,7 @@ def create_app() -> FastAPI:
     _initialized_at: Optional[float] = None
     _init_runs: int = 0
 
-    # Include routers (placeholders for now)
+    # Include routers
     app.include_router(users.router)
     app.include_router(contests.router)
     app.include_router(resources.router)
@@ -69,11 +80,11 @@ def create_app() -> FastAPI:
     app.include_router(auth_identities.router)
     app.include_router(roles.router)
     app.include_router(user_roles.router)
-    app.include_router(sessions.router)
     app.include_router(email_verification_tokens.router)
     app.include_router(password_reset_tokens.router)
     app.include_router(audit_logs.router)
     app.include_router(leaderboard.router)
+    app.include_router(auth.router)
 
     @app.post("/init")
     def initialize(force: bool = False) -> Dict[str, Any]:
@@ -93,16 +104,19 @@ def create_app() -> FastAPI:
                     ("auth_identities", auth_identities),
                     ("roles", roles),
                     ("user_roles", user_roles),
-                    ("sessions", sessions),
                     ("email_verification_tokens", email_verification_tokens),
                     ("password_reset_tokens", password_reset_tokens),
                     ("audit_logs", audit_logs),
                     ("leaderboard", leaderboard),
+                    ("auth", auth)
                 ]:
                     try:
                         mod.ensure_table(conn)
+                        conn.commit()               # ✅ commit success
                         db_status[name] = {"ok": True}
-                    except Exception as e:  # pragma: no cover
+                    except Exception as e:
+                        conn.rollback()             # ✅ clear failed tx
+                        logger.exception("ensure_table failed for %s", name)
                         db_status[name] = {"ok": False, "error": str(e)}
         except Exception as e:  # pragma: no cover
             db_status = {"ok": False, "error": str(e)}
@@ -135,4 +149,3 @@ def create_app() -> FastAPI:
 
 # Export a default app for uvicorn
 app = create_app()
-
