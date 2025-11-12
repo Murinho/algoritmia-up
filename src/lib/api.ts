@@ -11,19 +11,50 @@ export class HttpError extends Error {
   }
 }
 
-export async function postJSON<T>(path: string, payload: unknown, init?: RequestInit): Promise<T> {
+// helpers
+function extractMessage(data: unknown): string | undefined {
+  if (data && typeof data === "object") {
+    const rec = data as Record<string, unknown>;
+    const d = rec.detail;
+    const m = rec.message;
+    if (typeof d === "string") return d;
+    if (typeof m === "string") return m;
+  }
+  return undefined;
+}
+
+async function safeJson(res: Response): Promise<unknown> {
+  try {
+    // handles JSON bodies; will throw on empty/non-JSON
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+export async function postJSON<T>(
+  path: string,
+  payload: unknown,
+  init?: RequestInit
+): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...(init?.headers || {}) },
     body: JSON.stringify(payload),
     ...init,
   });
-  let data: any = null;
-  try { data = await res.json(); } catch { /* ignore non-JSON */ }
+
+  const data = await safeJson(res);
 
   if (!res.ok) {
-    const msg = data?.detail || data?.message || `HTTP ${res.status}`;
+    const msg = extractMessage(data) ?? `HTTP ${res.status}`;
     throw new HttpError(res.status, msg, data);
   }
+
+  // for 204 No Content (or empty body), return undefined as T
+  if (res.status === 204 || data === null) {
+    return undefined as T;
+  }
+
   return data as T;
 }
