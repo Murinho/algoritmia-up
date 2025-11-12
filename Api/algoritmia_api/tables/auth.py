@@ -57,6 +57,7 @@ def ensure_table(conn):
 class SignUp(BaseModel):
     # user profile
     full_name: str = Field(min_length=1)
+    preferred_name: str = Field(min_length=1)
     email: EmailStr
     codeforces_handle: str = Field(min_length=1)
     birthdate: date
@@ -130,14 +131,15 @@ def signup(payload: SignUp):
                 cur.execute(
                     """
                     INSERT INTO users
-                      (full_name, email, codeforces_handle, birthdate, degree_program,
+                      (full_name, preferred_name, email, codeforces_handle, birthdate, degree_program,
                        entry_year, country, profile_image_url)
                     VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
-                    RETURNING id, full_name, email, codeforces_handle, birthdate,
+                    RETURNING id, full_name, preferred_name, email, codeforces_handle, birthdate,
                               degree_program, entry_year, country, profile_image_url, created_at
                     """,
                     [
                         payload.full_name,
+                        payload.preferred_name,
                         str(payload.email),
                         payload.codeforces_handle,
                         payload.birthdate,

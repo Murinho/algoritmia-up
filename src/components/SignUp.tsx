@@ -3,18 +3,18 @@
 import { useMemo, useState } from "react";
 
 const MONTHS = [
-  { value: "01", label: "January" },
-  { value: "02", label: "February" },
-  { value: "03", label: "March" },
-  { value: "04", label: "April" },
-  { value: "05", label: "May" },
-  { value: "06", label: "June" },
-  { value: "07", label: "July" },
-  { value: "08", label: "August" },
-  { value: "09", label: "September" },
-  { value: "10", label: "October" },
-  { value: "11", label: "November" },
-  { value: "12", label: "December" },
+  { value: "01", label: "Enero" },
+  { value: "02", label: "Febrero" },
+  { value: "03", label: "Marzo" },
+  { value: "04", label: "Abril" },
+  { value: "05", label: "Mayo" },
+  { value: "06", label: "Junio" },
+  { value: "07", label: "Julio" },
+  { value: "08", label: "Agosto" },
+  { value: "09", label: "Septiembre" },
+  { value: "10", label: "Octubre" },
+  { value: "11", label: "Noviembre" },
+  { value: "12", label: "Diciembre" },
 ];
 
 const DEGREE_PROGRAMS = [
@@ -29,7 +29,6 @@ const DEGREE_PROGRAMS = [
   "Otro",
 ];
 
-// NEW: country options (ISO 3166-1 alpha-2, lowercase, ideal for FlagCDN)
 const COUNTRY_OPTIONS = [
   { code: "mx", name: "México" },
   { code: "ar", name: "Argentina" },
@@ -65,9 +64,8 @@ const COUNTRY_OPTIONS = [
   { code: "other", name: "Otro" },
 ];
 
-// Regex rules
-const passwordRegex = /^(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,20}$/; // 8–20, 1 uppercase, 1 digit, 1 symbol
-const cfRegex = /^[A-Za-z0-9_\-]{3,24}$/; // simple CF handle check
+const passwordRegex = /^(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,20}$/;
+const cfRegex = /^[A-Za-z0-9_\-]{3,24}$/;
 
 function isValidDate(yyyy: number, mm: number, dd: number) {
   const dt = new Date(yyyy, mm - 1, dd);
@@ -92,6 +90,7 @@ export default function SignUp() {
     const fd = new FormData(form);
 
     const fullname = String(fd.get("fullname") || "").trim();
+    const preferredName = String(fd.get("preferredName") || "").trim();
     const email = String(fd.get("email") || "").trim();
     const codeforces = String(fd.get("codeforces") || "").trim();
 
@@ -100,78 +99,57 @@ export default function SignUp() {
     const birthYear = Number(fd.get("birthYear"));
 
     const degree = String(fd.get("degree") || "");
-
     const entryMonth = Number(fd.get("entryMonth"));
     const entryYear = Number(fd.get("entryYear"));
-
     const gradMonth = Number(fd.get("gradMonth"));
     const gradYear = Number(fd.get("gradYear"));
-
     const password = String(fd.get("password") || "");
-
-    // NEW: country (ISO-2 lowercase or "other")
     const country = String(fd.get("country") || "");
 
     const nextErrors: Record<string, string> = {};
 
-    // Fullname
-    if (fullname.length < 3) nextErrors.fullname = "Please enter your full name";
+    if (fullname.length < 3) nextErrors.fullname = "Por favor, ingresa tu nombre completo";
+    if (preferredName && preferredName.length < 2) nextErrors.preferredName = "El nombre preferido es demasiado corto";
 
-    // Email suffix
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      nextErrors.email = "Enter a valid email";
+      nextErrors.email = "Ingresa un correo válido";
     } else if (!email.toLowerCase().endsWith("@up.edu.mx")) {
-      nextErrors.email = "Email must end with @up.edu.mx";
+      nextErrors.email = "Debe terminar con @up.edu.mx";
     }
 
-    // Codeforces handle
-    if (!cfRegex.test(codeforces)) {
-      nextErrors.codeforces = "3–24 chars, letters/numbers/_/-";
-    }
-
-    // Birthdate
-    if (!isValidDate(birthYear, birthMonth, birthDay)) {
-      nextErrors.birthdate = "Invalid birthdate";
-    }
-
-    // Degree
-    if (!degree) nextErrors.degree = "Choose a program";
-
-    // NEW: Country validation
+    if (!cfRegex.test(codeforces)) nextErrors.codeforces = "3–24 caracteres, letras/números/_/-";
+    if (!isValidDate(birthYear, birthMonth, birthDay)) nextErrors.birthdate = "Fecha inválida";
+    if (!degree) nextErrors.degree = "Selecciona un programa";
     if (!country) nextErrors.country = "Selecciona tu país de origen";
 
-    // Entry & Graduation order
-    if (!entryMonth || !entryYear) nextErrors.entry = "Select month and year";
-    if (!gradMonth || !gradYear) nextErrors.grad = "Select month and year";
+    if (!entryMonth || !entryYear) nextErrors.entry = "Selecciona mes y año";
+    if (!gradMonth || !gradYear) nextErrors.grad = "Selecciona mes y año";
     const entryDate = new Date(entryYear, entryMonth - 1, 1);
     const gradDate = new Date(gradYear, gradMonth - 1, 1);
-    if (gradDate <= entryDate) nextErrors.grad = "Graduation must be after entry";
+    if (gradDate <= entryDate) nextErrors.grad = "Graduación debe ser posterior al ingreso";
 
-    // Password
     if (!passwordRegex.test(password)) {
-      nextErrors.password = "8–20 chars, 1 uppercase, 1 symbol, 1 digit";
+      nextErrors.password = "8–20 caracteres, 1 mayúscula, 1 símbolo, 1 dígito";
     }
 
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
 
-    // Shape final payload
     const payload = {
       fullname,
+      preferredName,
       email,
       codeforces,
       degree,
-      // NEW: persist ISO-2 code for easy flag rendering with FlagCDN
-      country, // e.g., "mx"
+      country,
       birthdate: `${birthYear}-${String(birthMonth).padStart(2, "0")}-${String(birthDay).padStart(2, "0")}`,
       entryDate: `${entryYear}-${String(entryMonth).padStart(2, "0")}-01`,
       expectedGraduation: `${gradYear}-${String(gradMonth).padStart(2, "0")}-01`,
-      password, // hash this on the server
+      password,
     };
 
     try {
       setSubmitting(true);
-      // TODO: replace with real API call
       console.log("SignUp payload", payload);
       setSuccessMsg("¡Registro válido! (Conecta el submit a tu API)");
       form.reset();
@@ -183,18 +161,10 @@ export default function SignUp() {
   return (
     <section
       aria-labelledby="signup-title"
-      className="
-        relative
-        min-h[100dvh]
-        min-h-[100dvh]
-        pt-[env(safe-area-inset-top)]
-        pb-[env(safe-area-inset-bottom)]
-        flex items-center
-      "
+      className="relative min-h-[100dvh] flex items-center pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]"
     >
       <div aria-hidden className="absolute inset-0 -z-10 bg-gradient-to-br from-[#0D0D0D] via-[#2c1e28] to-[#C5133D]" />
-      <div className="mx-auto max-w-3xl px-6 overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-md shadow-[0_10px_40px_rgba(0,0,0,0.25)]">
-        {/* Top accent bar */}
+      <div className="mx-auto max-w-3xl px-6 overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-md shadow-[0_10px_40px_rgba(0,0,0,0.25)] relative">
         <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-[#C5133D] via-fuchsia-500 to-amber-400" />
 
         <header className="mb-6 text-center">
@@ -207,16 +177,18 @@ export default function SignUp() {
         )}
 
         <form onSubmit={onSubmit} className="grid gap-6">
-          {/* Name & Email */}
+          {/* Fullname, Preferred Name & Email */}
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
               <label htmlFor="fullname" className="text-white">Nombre completo</label>
-              <input id="fullname" name="fullname" required minLength={3} placeholder="Tu nombre" className="mt-2 w-full rounded-md border border-white/10 bg-white/10 px-3 py-2 text-white placeholder:text-white/50 focus:outline-none focus:ring-2 focus:ring-[#C5133D]/60" />
+              <input id="fullname" name="fullname" required minLength={3} placeholder="Tu nombre completo"
+                className="mt-2 w-full rounded-md border border-white/10 bg-white/10 px-3 py-2 text-white placeholder:text-white/50 focus:outline-none focus:ring-2 focus:ring-[#C5133D]/60" />
               {errors.fullname && <p className="mt-1 text-xs text-red-300">{errors.fullname}</p>}
             </div>
             <div>
               <label htmlFor="email" className="text-white">Email (@up.edu.mx)</label>
-              <input id="email" name="email" type="email" required placeholder="nombre.apellido@up.edu.mx" className="mt-2 w-full rounded-md border border-white/10 bg-white/10 px-3 py-2 text-white placeholder:text-white/50 focus:outline-none focus:ring-2 focus:ring-[#C5133D]/60" />
+              <input id="email" name="email" type="email" required placeholder="nombre.apellido@up.edu.mx"
+                className="mt-2 w-full rounded-md border border-white/10 bg-white/10 px-3 py-2 text-white placeholder:text-white/50 focus:outline-none focus:ring-2 focus:ring-[#C5133D]/60" />
               {errors.email && <p className="mt-1 text-xs text-red-300">{errors.email}</p>}
             </div>
           </div>
@@ -224,9 +196,10 @@ export default function SignUp() {
           {/* Codeforces & Degree */}
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
-              <label htmlFor="codeforces" className="text-white">Codeforces handle</label>
-              <input id="codeforces" name="codeforces" required placeholder="e.g. adrianmuro" className="mt-2 w-full rounded-md border border-white/10 bg-white/10 px-3 py-2 text-white placeholder:text-white/50 focus:outline-none focus:ring-2 focus:ring-[#C5133D]/60" />
-              {errors.codeforces && <p className="mt-1 text-xs text-red-300">{errors.codeforces}</p>}
+              <label htmlFor="preferredName" className="text-white">Nombre preferido</label>
+              <input id="preferredName" name="preferredName" placeholder="Como te gusta que te llamen"
+                className="mt-2 w-full rounded-md border border-white/10 bg-white/10 px-3 py-2 text-white placeholder:text-white/50 focus:outline-none focus:ring-2 focus:ring-[#C5133D]/60" />
+              {errors.preferredName && <p className="mt-1 text-xs text-red-300">{errors.preferredName}</p>}
             </div>
             <div>
               <label htmlFor="degree" className="text-white">Programa</label>
@@ -309,6 +282,11 @@ export default function SignUp() {
           {/* Country of origin and password*/}
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
+              <label htmlFor="codeforces" className="text-white">Codeforces handle</label>
+              <input id="codeforces" name="codeforces" required placeholder="e.g. adrianmuro" className="mt-2 w-full rounded-md border border-white/10 bg-white/10 px-3 py-2 text-white placeholder:text-white/50 focus:outline-none focus:ring-2 focus:ring-[#C5133D]/60" />
+              {errors.codeforces && <p className="mt-1 text-xs text-red-300">{errors.codeforces}</p>}
+            </div>
+            <div>
               <label htmlFor="country" className="text-white">País de origen</label>
               <select id="country" name="country" required defaultValue="" className="mt-2 w-full rounded-md border border-white/10 bg-white/10 px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-[#C5133D]/60">
                 <option value="" disabled>Selecciona tu país</option>
@@ -318,6 +296,9 @@ export default function SignUp() {
               </select>
               {errors.country && <p className="mt-1 text-xs text-red-300">{errors.country}</p>}
             </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
               <label htmlFor="password" className="text-white">Contraseña</label>
               <input id="password" name="password" type="password" required placeholder="••••••••" className="mt-2 w-full rounded-md border border-white/10 bg-white/10 px-3 py-2 text-white placeholder:text-white/50 focus:outline-none focus:ring-2 focus:ring-[#C5133D]/60" />

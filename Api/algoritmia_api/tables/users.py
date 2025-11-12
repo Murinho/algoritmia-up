@@ -12,6 +12,7 @@ DDL = """
 CREATE TABLE IF NOT EXISTS users (
     id BIGSERIAL PRIMARY KEY,
     full_name TEXT NOT NULL,
+    preferred_name TEXT NOT NULL,
     email CITEXT UNIQUE NOT NULL,
     codeforces_handle TEXT UNIQUE NOT NULL,
     birthdate DATE NOT NULL,
@@ -30,6 +31,7 @@ def ensure_table(conn) -> None:
 
 class UserCreate(BaseModel):
     full_name: str = Field(min_length=1)
+    preferred_name: str = Field(min_length=1)
     email: EmailStr
     codeforces_handle: str = Field(min_length=1)
     birthdate: date
@@ -40,6 +42,7 @@ class UserCreate(BaseModel):
 
 class UserUpdate(BaseModel):
     full_name: Optional[str] = None
+    preferred_name: Optional[str] = None
     codeforces_handle: Optional[str] = None
     birthdate: Optional[date] = None
     degree_program: Optional[str] = None
@@ -80,14 +83,15 @@ def get_user_by_email(email: EmailStr):
 def create_user(payload: UserCreate):
     with db.connect() as conn:
         sql = (
-            "INSERT INTO users (full_name, email, codeforces_handle, birthdate, degree_program, entry_year, country, profile_image_url) "
-            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *"
+            "INSERT INTO users (full_name, preferred_name, email, codeforces_handle, birthdate, degree_program, entry_year, country, profile_image_url) "
+            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *"
         )
         row = db.fetchone(
             conn,
             sql,
             [
                 payload.full_name,
+                payload.preferred_name,
                 str(payload.email),
                 payload.codeforces_handle,
                 payload.birthdate,
