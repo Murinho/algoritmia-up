@@ -11,7 +11,6 @@ import {
   FileText,
   CheckCircle,
   Upload,
-  Image as ImageIcon,
 } from 'lucide-react';
 
 export type EventItem = {
@@ -56,8 +55,6 @@ function Field({
     </div>
   );
 }
-
-const STATUSES: Array<EventItem['status']> = ['Próximo', 'Disponible', 'Abierto'];
 
 // ——— Small Upload Field Component ———
 function ImageUploader({

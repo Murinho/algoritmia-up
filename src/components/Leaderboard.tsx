@@ -135,7 +135,6 @@ function rankMembers(members: Member[]): Array<Member & { rank: number }> {
 export default function Leaderboard() {
   const [query, setQuery] = useState("");
   const [members, setMembers] = useState<Member[]>([]);
-  const [loading, setLoading] = useState<boolean>(false);
   const [lastSynced, setLastSynced] = useState<Date>(new Date());
 
   // In the future, plug Codeforces API here.
@@ -163,15 +162,6 @@ export default function Leaderboard() {
         m.handle.toLowerCase().includes(q) || m.name.toLowerCase().includes(q)
     );
   }, [members, query]);
-
-  function handleRefresh() {
-    // Hook this to a real sync later
-    setLoading(true);
-    setTimeout(() => {
-      setLastSynced(new Date());
-      setLoading(false);
-    }, 500);
-  }
 
   return (
     <section className="

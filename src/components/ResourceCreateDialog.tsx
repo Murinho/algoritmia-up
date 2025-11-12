@@ -8,7 +8,6 @@ import {
   Tag as TagIcon,
   Star,
   BookOpen,
-  Calendar,
   User,
   StickyNote,
   FileText,
@@ -19,7 +18,6 @@ import {
   Book,
   SheetIcon,
   Presentation,
-  DotIcon,
   NewspaperIcon,
   BringToFrontIcon,
 } from 'lucide-react';
