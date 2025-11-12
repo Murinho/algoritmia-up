@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { JSX, useMemo, useState } from 'react';
+import { JSX, useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   FileText,
   Newspaper,
@@ -135,11 +136,49 @@ const mapType = (t: DialogResourceType): ResourceType => {
 };
 
 export default function ResourcesSection() {
+  const router = useRouter();
+
+  // 🔒 Auth guard state
+  const [checkingAuth, setCheckingAuth] = useState(true);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/+$/, '') || '';
+
+  // Local UI state
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<SortState>({ key: 'createdAt', dir: 'desc' });
-
   const [resources, setResources] = useState<Resource[]>(seedResources);
   const [openCreate, setOpenCreate] = useState(false);
+
+  // 🔒 Check session on mount; redirect if unauthenticated
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/auth/me`, {
+          method: 'GET',
+          credentials: 'include',
+        });
+        if (!res.ok) {
+          if (!cancelled) {
+            setAuthError('No hay sesión activa. Redirigiendo al login…');
+            setTimeout(() => router.replace('/login'), 1);
+          }
+          return;
+        }
+        // (Optional) hydrate resource permissions later based on user/role from res.json()
+      } catch {
+        if (!cancelled) {
+          setAuthError('No hay sesión activa. Redirigiendo al login…');
+          setTimeout(() => router.replace('/login'), 900);
+        }
+      } finally {
+        if (!cancelled) setCheckingAuth(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [API_BASE, router]);
 
   const data = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -171,7 +210,7 @@ export default function ResourcesSection() {
     });
 
     return sorted;
-  }, [query, sort, resources]); // ⬅️ include resources
+  }, [query, sort, resources]);
 
   function toggleSort(key: SortKey) {
     setSort((prev) =>
@@ -207,6 +246,26 @@ export default function ResourcesSection() {
       notes: newResource.notes,
     };
     setResources((prev) => [mapped, ...prev]);
+  }
+
+  // 🔒 Early guard UI
+  if (checkingAuth) {
+    return (
+      <div className="grid min-h-[100svh] place-items-center bg-gradient-to-tr from-[#0D0D0D] via-[#2c1e28] to-[#C5133D]">
+        <div className="rounded-xl border border-white/15 bg-white/10 px-6 py-4 text-white/90 backdrop-blur">
+          Verificando sesión…
+        </div>
+      </div>
+    );
+  }
+  if (authError) {
+    return (
+      <div className="grid min-h-[100svh] place-items-center bg-gradient-to-tr from-[#0D0D0D] via-[#2c1e28] to-[#C5133D]">
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-6 py-4 text-amber-200 backdrop-blur">
+          {authError}
+        </div>
+      </div>
+    );
   }
 
   return (
