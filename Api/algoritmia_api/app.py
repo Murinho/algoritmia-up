@@ -37,6 +37,7 @@ def create_app() -> FastAPI:
     default_origins = [
         "http://localhost:3000",
         "http://127.0.0.1:3000",
+        "https://algoritmia-up.vercel.app",
     ]
     # Comma-separated extra origins (exact matches)
     extra_origins_env = os.getenv("ALLOWED_ORIGINS", "").strip()
