@@ -1,7 +1,7 @@
 // app/components/ContestCreateDialog.tsx
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { X, Calendar, Link as LinkIcon, Tag as TagIcon, Star, MapPin, Trophy } from 'lucide-react';
 
 export type Platform =
@@ -59,19 +59,6 @@ function localToISO(local: string) {
   const dt = new Date(local);
   if (Number.isNaN(dt.getTime())) return '';
   return dt.toISOString();
-}
-
-function isoToLocal(iso?: string) {
-  if (!iso) return '';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  const pad = (n: number) => String(n).padStart(2, '0');
-  const y = d.getFullYear();
-  const m = pad(d.getMonth() + 1);
-  const day = pad(d.getDate());
-  const h = pad(d.getHours());
-  const min = pad(d.getMinutes());
-  return `${y}-${m}-${day}T${h}:${min}`;
 }
 
 function genId() {

@@ -6,9 +6,7 @@ from pydantic import BaseModel, EmailStr, Field
 
 from .. import db
 
-
 router = APIRouter(prefix="/users", tags=["Users"])
-
 
 DDL = """
 CREATE TABLE IF NOT EXISTS users (
@@ -25,12 +23,10 @@ CREATE TABLE IF NOT EXISTS users (
 );
 """
 
-
 def ensure_table(conn) -> None:
     with conn.cursor() as cur:
         cur.execute(DDL)
     conn.commit()
-
 
 class UserCreate(BaseModel):
     full_name: str = Field(min_length=1)
@@ -42,7 +38,6 @@ class UserCreate(BaseModel):
     country: str
     profile_image_url: Optional[str] = None
 
-
 class UserUpdate(BaseModel):
     full_name: Optional[str] = None
     codeforces_handle: Optional[str] = None
@@ -51,7 +46,6 @@ class UserUpdate(BaseModel):
     entry_year: Optional[int] = Field(default=None, ge=2000, le=2100)
     country: Optional[str] = None
     profile_image_url: Optional[str] = None
-
 
 @router.get("")
 def list_users(q: Optional[str] = Query(None, description="Search by name or email")):
@@ -66,7 +60,6 @@ def list_users(q: Optional[str] = Query(None, description="Search by name or ema
         rows = db.fetchall(conn, sql, params)
     return {"items": rows}
 
-
 @router.get("/{user_id}")
 def get_user(user_id: int):
     with db.connect() as conn:
@@ -75,7 +68,6 @@ def get_user(user_id: int):
         raise HTTPException(status_code=404, detail="User not found")
     return row
 
-
 @router.get("/by-email")
 def get_user_by_email(email: EmailStr):
     with db.connect() as conn:
@@ -83,7 +75,6 @@ def get_user_by_email(email: EmailStr):
     if not row:
         raise HTTPException(status_code=404, detail="User not found")
     return row
-
 
 @router.post("")
 def create_user(payload: UserCreate):
@@ -108,7 +99,6 @@ def create_user(payload: UserCreate):
         )
     return row
 
-
 @router.patch("/{user_id}")
 def update_user(user_id: int, payload: UserUpdate):
     fields = payload.model_dump(exclude_unset=True)
@@ -121,7 +111,6 @@ def update_user(user_id: int, payload: UserUpdate):
     if not row:
         raise HTTPException(status_code=404, detail="User not found")
     return row
-
 
 @router.delete("/{user_id}")
 def delete_user(user_id: int):

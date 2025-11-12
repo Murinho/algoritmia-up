@@ -60,3 +60,19 @@ Environment:
   The `POST /init` endpoint will create the `public.leaderboard` table if it does not exist.
 
 The API enables CORS for `http://localhost:3000` by default so the Next.js app can call it during development.
+
+curl -i "http://127.0.0.1:8000/users" \
+  -H "Content-Type: application/json" \
+  --data-binary @- <<'JSON'
+{
+  "full_name": "Adrián Muro Garduño",
+  "email": "adrian@up.edu.mx",
+  "codeforces_handle": "adrianmuro",
+  "birthdate": "2002-10-09",
+  "degree_program": "Ingeniería en IA",
+  "entry_year": 2021,
+  "country": "Mexico",
+  "password": "1Qwerty$"
+  "profile_image_url": "https://example.com/avatar.png"
+}
+JSON

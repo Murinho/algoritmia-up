@@ -1,7 +1,7 @@
 "use client";
 
-import Image from "next/image";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 
 // ---- Mock: replace with real user data from your API/auth ----
 const mockUser = {
@@ -66,6 +66,17 @@ function yearsRange(from = 1980, to = new Date().getFullYear() + 8) {
 export default function ProfilePage() {
   const [form, setForm] = useState({ ...mockUser });
   const [saving, setSaving] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  // NEW: auth guard state
+  const [checkingAuth, setCheckingAuth] = useState(true);
+  const [authError, setAuthError] = useState<string | null>(null);
+
+  const router = useRouter();
+
+  // Good default: use env base URL if set; otherwise fall back to relative calls
+  const API_BASE =
+    process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/+$/, "") || "";
 
   // Avatar handling
   const [avatarPreview, setAvatarPreview] = useState<string>(
@@ -73,10 +84,64 @@ export default function ProfilePage() {
   );
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const DAYS = useMemo(() => Array.from({ length: 31 }, (_, i) => String(i + 1).padStart(2, "0")), []);
-  const BIRTH_YEARS = useMemo(() => yearsRange(1980, new Date().getFullYear() - 10), []);
-  const UNI_YEARS = useMemo(() => yearsRange(2005, new Date().getFullYear() + 1), []);
-  const GRAD_YEARS = useMemo(() => yearsRange(2008, new Date().getFullYear() + 8), []);
+  const DAYS = useMemo(
+    () => Array.from({ length: 31 }, (_, i) => String(i + 1).padStart(2, "0")),
+    []
+  );
+  const BIRTH_YEARS = useMemo(
+    () => yearsRange(1980, new Date().getFullYear() - 10),
+    []
+  );
+  const UNI_YEARS = useMemo(
+    () => yearsRange(2005, new Date().getFullYear() + 1),
+    []
+  );
+  const GRAD_YEARS = useMemo(
+    () => yearsRange(2008, new Date().getFullYear() + 8),
+    []
+  );
+
+  // NEW: Block page if no active session, hydrate if authenticated
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/auth/me`, {
+          method: "GET",
+          credentials: "include",
+        });
+        if (!res.ok) {
+          // not authenticated -> show small notice and redirect
+          if (!cancelled) {
+            setAuthError("No hay sesión activa. Redirigiendo al login…");
+            setTimeout(() => router.replace("/login"), 900);
+          }
+          return;
+        }
+        // Optional: hydrate from backend user
+        const data = await res.json();
+        if (!cancelled && data?.user) {
+          setForm((prev) => ({
+            ...prev,
+            fullName: data.user.full_name ?? prev.fullName,
+            email: data.user.email ?? prev.email,
+            codeforces: data.user.codeforces_handle ?? prev.codeforces,
+            // keep other fields as-is until you add them server-side
+          }));
+        }
+      } catch {
+        if (!cancelled) {
+          setAuthError("No hay sesión activa. Redirigiendo al login…");
+          setTimeout(() => router.replace("/login"), 900);
+        }
+      } finally {
+        if (!cancelled) setCheckingAuth(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [API_BASE, router]);
 
   const onPickAvatar = () => fileInputRef.current?.click();
   const onFileChange: React.ChangeEventHandler<HTMLInputElement> = (e) => {
@@ -85,19 +150,15 @@ export default function ProfilePage() {
     const url = URL.createObjectURL(f);
     setAvatarPreview(url);
     // Keep file in state if you want to upload it later
-    // In production: upload to storage (e.g., S3, GCS, Supabase) then save returned URL
   };
 
-  const handleChange = (
-    key: keyof typeof form,
-    value: string
-  ) => setForm((prev) => ({ ...prev, [key]: value }));
+  const handleChange = (key: keyof typeof form, value: string) =>
+    setForm((prev) => ({ ...prev, [key]: value }));
 
   const handleSave = async () => {
     setSaving(true);
     try {
       // TODO: send `form` + photo file to your API
-      // await fetch("/api/profile", { method: "POST", body: JSON.stringify(form) })
       await new Promise((r) => setTimeout(r, 800)); // demo
       alert("Perfil actualizado ✅");
     } catch (e) {
@@ -106,6 +167,51 @@ export default function ProfilePage() {
       setSaving(false);
     }
   };
+
+  const handleLogout = async () => {
+    try {
+      setLoggingOut(true);
+      const res = await fetch(`${API_BASE}/auth/logout`, {
+        method: "POST",
+        credentials: "include", // ⬅️ important: send cookies
+        headers: { "Content-Type": "application/json" },
+      });
+
+      if (!res.ok) {
+        console.warn("Logout responded non-2xx:", await res.text());
+      }
+
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("algoup_email");
+      }
+      router.replace("/login");
+    } catch (err) {
+      console.error("Logout error:", err);
+      router.replace("/login");
+    } finally {
+      setLoggingOut(false);
+    }
+  };
+
+  // Early guard UI
+  if (checkingAuth) {
+    return (
+      <div className="grid min-h-[100svh] place-items-center bg-gradient-to-br from-[#0D0D0D] via-[#2c1e28] to-[#C5133D]">
+        <div className="rounded-xl border border-white/15 bg-white/10 px-6 py-4 text-white/90 backdrop-blur">
+          Verificando sesión…
+        </div>
+      </div>
+    );
+  }
+  if (authError) {
+    return (
+      <div className="grid min-h-[100svh] place-items-center bg-gradient-to-br from-[#0D0D0D] via-[#2c1e28] to-[#C5133D]">
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-6 py-4 text-amber-200 backdrop-blur">
+          {authError}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative min-h-[100svh] w-full">
@@ -116,6 +222,18 @@ export default function ProfilePage() {
       />
 
       <section className="mx-auto max-w-5xl px-4 py-10 sm:py-14">
+        {/* Top bar with Logout */}
+        <div className="mb-3 flex justify-end">
+          <button
+            onClick={handleLogout}
+            disabled={loggingOut}
+            className="rounded-xl border border-white/20 px-4 py-2 text-sm text-white/90 hover:bg-white/10 disabled:opacity-60"
+            title="Cerrar sesión"
+          >
+            {loggingOut ? "Cerrando sesión…" : "Cerrar sesión"}
+          </button>
+        </div>
+
         <header className="mb-8 text-center">
           <h1 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
             Tu perfil
@@ -136,7 +254,6 @@ export default function ProfilePage() {
                 <div className="flex items-center gap-4">
                   <div className="relative h-28 w-28 overflow-hidden rounded-full ring-2 ring-white/20">
                     {avatarPreview ? (
-                      // Using next/image is ok if the URL is allowed; for blob preview we can use plain img
                       <img
                         src={avatarPreview}
                         alt="Foto de perfil"
@@ -234,7 +351,10 @@ export default function ProfilePage() {
                       hideLabel
                       value={form.birthDay}
                       onChange={(v) => handleChange("birthDay", v)}
-                      options={DAYS.map((d) => ({ value: d, label: String(Number(d)) }))}
+                      options={DAYS.map((d) => ({
+                        value: d,
+                        label: String(Number(d)),
+                      }))}
                       placeholder="Día"
                     />
                     <SelectField

@@ -1,10 +1,28 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL;
+
+type ApiErrorPayload = {
+  detail?: string;
+  // allow other fields without using `any`
+  [key: string]: unknown;
+};
+
+function extractDetail(data: unknown): string | undefined {
+  if (typeof data === "object" && data !== null && "detail" in data) {
+    const v = (data as Record<string, unknown>).detail;
+    if (typeof v === "string") return v;
+  }
+  return undefined;
+}
 
 export default function Login() {
+  const router = useRouter();
+
   const [email, setEmail] = useState("");           // controlled
   const [password, setPassword] = useState("");     // controlled
   const [remember, setRemember] = useState(false);
@@ -13,6 +31,11 @@ export default function Login() {
   const [submitting, setSubmitting] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
+  // NEW: auth state for /auth/me
+  const [checkingAuth, setCheckingAuth] = useState(true);
+  const [alreadyLoggedIn, setAlreadyLoggedIn] = useState(false);
+
+  // Load remembered email + check active session
   useEffect(() => {
     try {
       const saved =
@@ -26,9 +49,29 @@ export default function Login() {
     } catch {
       /* ignore storage errors */
     }
-  }, []);
 
-   const onSubmit: React.FormEventHandler<HTMLFormElement> = async (e) => {
+    // Check if there's an active session (blocks the form)
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/auth/me`, {
+          method: "GET",
+          credentials: "include",
+        });
+        if (res.ok) {
+          setAlreadyLoggedIn(true);
+          setSuccessMsg("Ya iniciaste sesión en este navegador.");
+          // Optional: brief toast then redirect
+          setTimeout(() => router.replace("/perfil"), 1200);
+        }
+      } catch {
+        // ignore network errors here
+      } finally {
+        setCheckingAuth(false);
+      }
+    })();
+  }, [router]);
+
+  const onSubmit: React.FormEventHandler<HTMLFormElement> = async (e) => {
     e.preventDefault();
     setSuccessMsg(null);
     setErrors({});
@@ -40,11 +83,9 @@ export default function Login() {
     } else if (!email.toLowerCase().endsWith("@up.edu.mx")) {
       nextErrors.email = "El correo debe terminar en @up.edu.mx";
     }
-
     if (password.length < 8) {
       nextErrors.password = "La contraseña debe tener al menos 8 caracteres";
     }
-
     if (Object.keys(nextErrors).length) {
       setErrors(nextErrors);
       return;
@@ -58,21 +99,60 @@ export default function Login() {
         if (remember) localStorage.setItem("algoup_email", email);
         else localStorage.removeItem("algoup_email");
       } catch {
-        /* ignore storage errors */
+        /* ignore */
       }
 
-      // TODO: real API call here
-      console.log("Login payload", { email, password });
-      setSuccessMsg("¡Inicio de sesión válido! (Conecta este submit a tu API)");
-    } catch (err) {
-      // <-- no : any
+      // Real API call (sets httpOnly cookie)
+      const res = await fetch(`${API_BASE}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          email,
+          password,
+          create_session: true,
+          ttl_minutes: 60 * 24,
+        }),
+      });
+
+      if (res.status === 409) {
+        const data: unknown = (await res.json().catch(() => null)) as unknown;
+        setErrors({
+          form:
+            extractDetail(data) ||
+            "Ya existe una sesión activa. Cierra sesión o usa incógnito.",
+        });
+        return;
+      }
+
+      if (res.status === 401) {
+        setErrors({
+          form: "Credenciales inválidas. Revisa tu correo y contraseña.",
+        });
+        return;
+      }
+
+      if (!res.ok) {
+        const data: unknown = (await res.json().catch(() => null)) as unknown;
+        setErrors({ form: extractDetail(data) || "No se pudo iniciar sesión." });
+        return;
+      }
+
+      setSuccessMsg("¡Sesión iniciada!");
+      setTimeout(() => {
+        router.push("/perfil");
+      }, 800);
+    } catch (err: unknown) {
+      // `fetch` throws TypeError on network failures; it won't include `status`.
       const message =
-        err instanceof Error ? err.message : String(err ?? "Error");
-      setErrors({ form: message || "No se pudo iniciar sesión" });
+        err instanceof Error ? err.message : "No se pudo iniciar sesión.";
+      setErrors({ form: message });
     } finally {
       setSubmitting(false);
     }
   };
+
+  const disabled = submitting || checkingAuth || alreadyLoggedIn;
 
   return (
     <section
@@ -96,11 +176,21 @@ export default function Login() {
             <p className="mt-1 text-sm text-white/70">Usa tu correo institucional para entrar.</p>
           </header>
 
+          {checkingAuth && (
+            <div className="mb-4 rounded-lg border border-white/20 bg-white/10 p-3 text-white/80">
+              Verificando sesión…
+            </div>
+          )}
           {successMsg && (
             <div className="mb-4 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-emerald-200">{successMsg}</div>
           )}
           {errors.form && (
             <div className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-red-200">{errors.form}</div>
+          )}
+          {alreadyLoggedIn && !checkingAuth && (
+            <div className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-amber-200">
+              Ya estás autenticado en este navegador. Redirigiendo…
+            </div>
           )}
 
           <form onSubmit={onSubmit} className="grid gap-5">
@@ -111,12 +201,13 @@ export default function Login() {
                 name="email"
                 type="email"
                 placeholder="nombre.apellido@up.edu.mx"
-                className="mt-2 w-full rounded-md border border-white/10 bg-white/10 px-3 py-2 text-white placeholder:text-white/50 focus:outline-none focus:ring-2 focus:ring-[#C5133D]/60"
+                className="mt-2 w-full rounded-md border border-white/10 bg-white/10 px-3 py-2 text-white placeholder:text-white/50 focus:outline-none focus:ring-2 focus:ring-[#C5133D]/60 disabled:opacity-60"
                 required
                 autoComplete="email"
                 inputMode="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                disabled={disabled}
               />
               {errors.email && <p className="mt-1 text-xs text-red-300">{errors.email}</p>}
             </div>
@@ -127,8 +218,9 @@ export default function Login() {
                 <button
                   type="button"
                   onClick={() => setShowPwd((v) => !v)}
-                  className="text-xs text-white/70 underline-offset-2 hover:underline"
+                  className="text-xs text-white/70 underline-offset-2 hover:underline disabled:opacity-60"
                   aria-pressed={showPwd}
+                  disabled={disabled}
                 >
                   {showPwd ? "Ocultar" : "Mostrar"}
                 </button>
@@ -138,11 +230,12 @@ export default function Login() {
                 name="password"
                 type={showPwd ? "text" : "password"}
                 placeholder="••••••••••"
-                className="mt-2 w-full rounded-md border border-white/10 bg-white/10 px-3 py-2 text-white placeholder:text-white/50 focus:outline-none focus:ring-2 focus:ring-[#C5133D]/60"
+                className="mt-2 w-full rounded-md border border-white/10 bg-white/10 px-3 py-2 text-white placeholder:text-white/50 focus:outline-none focus:ring-2 focus:ring-[#C5133D]/60 disabled:opacity-60"
                 required
                 autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                disabled={disabled}
               />
               {errors.password && <p className="mt-1 text-xs text-red-300">{errors.password}</p>}
 
@@ -153,6 +246,7 @@ export default function Login() {
                     className="h-4 w-4 rounded border-white/20 bg-white/10"
                     checked={remember}
                     onChange={(e) => setRemember(e.target.checked)}
+                    disabled={disabled}
                   />
                   Recuérdame
                 </label>
@@ -164,7 +258,7 @@ export default function Login() {
 
             <button
               type="submit"
-              disabled={submitting}
+              disabled={disabled}
               className="ml-auto mt-1 inline-flex items-center justify-center rounded-2xl bg-[#C5133D] px-4 py-2 font-medium text-white transition hover:bg-[#a01032] disabled:opacity-60"
             >
               {submitting ? "Entrando…" : "Iniciar sesión"}
