@@ -6,6 +6,20 @@ import { useRouter } from "next/navigation";
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL;
 
+type ApiErrorPayload = {
+  detail?: string;
+  // allow other fields without using `any`
+  [key: string]: unknown;
+};
+
+function extractDetail(data: unknown): string | undefined {
+  if (typeof data === "object" && data !== null && "detail" in data) {
+    const v = (data as Record<string, unknown>).detail;
+    if (typeof v === "string") return v;
+  }
+  return undefined;
+}
+
 export default function Login() {
   const router = useRouter();
 
@@ -50,7 +64,7 @@ export default function Login() {
           setTimeout(() => router.replace("/perfil"), 1200);
         }
       } catch {
-        // ignore
+        // ignore network errors here
       } finally {
         setCheckingAuth(false);
       }
@@ -84,7 +98,9 @@ export default function Login() {
       try {
         if (remember) localStorage.setItem("algoup_email", email);
         else localStorage.removeItem("algoup_email");
-      } catch {/* ignore */}
+      } catch {
+        /* ignore */
+      }
 
       // Real API call (sets httpOnly cookie)
       const res = await fetch(`${API_BASE}/auth/login`, {
@@ -100,10 +116,10 @@ export default function Login() {
       });
 
       if (res.status === 409) {
-        const data: any = await res.json().catch(() => ({}));
+        const data: unknown = (await res.json().catch(() => null)) as unknown;
         setErrors({
           form:
-            data?.detail ||
+            extractDetail(data) ||
             "Ya existe una sesión activa. Cierra sesión o usa incógnito.",
         });
         return;
@@ -117,8 +133,8 @@ export default function Login() {
       }
 
       if (!res.ok) {
-        const data: any = await res.json().catch(() => ({}));
-        setErrors({ form: data?.detail || "No se pudo iniciar sesión." });
+        const data: unknown = (await res.json().catch(() => null)) as unknown;
+        setErrors({ form: extractDetail(data) || "No se pudo iniciar sesión." });
         return;
       }
 
@@ -126,26 +142,17 @@ export default function Login() {
       setTimeout(() => {
         router.push("/perfil");
       }, 800);
-    } catch (err: any) {
-      const status = err?.status as number | undefined;
-      const detail = err?.message as string | undefined;
-
-      if (status === 401) {
-        setErrors({ form: "Credenciales inválidas. Revisa tu correo y contraseña." });
-      } else if (status === 409) {
-        setErrors({ form: detail || "Ya existe una sesión activa." });
-      } else if (status === 422) {
-        setErrors({ form: "Datos inválidos. Verifica el formulario." });
-      } else {
-        setErrors({ form: detail || "No se pudo iniciar sesión." });
-      }
+    } catch (err: unknown) {
+      // `fetch` throws TypeError on network failures; it won't include `status`.
+      const message =
+        err instanceof Error ? err.message : "No se pudo iniciar sesión.";
+      setErrors({ form: message });
     } finally {
       setSubmitting(false);
     }
   };
 
-  const disabled =
-    submitting || checkingAuth || alreadyLoggedIn;
+  const disabled = submitting || checkingAuth || alreadyLoggedIn;
 
   return (
     <section
