@@ -1,5 +1,5 @@
 from datetime import date
-from typing import Optional
+from typing import Optional, Literal  # 👈 added Literal
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, EmailStr, Field
@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS users (
     grad_month INT NOT NULL CHECK (grad_month BETWEEN 1 AND 12),
     country TEXT NOT NULL,
     profile_image_url TEXT,
+    role TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('user', 'coach', 'admin')),  
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 """
@@ -32,6 +33,9 @@ def ensure_table(conn) -> None:
         cur.execute(DDL)
     conn.commit()
 
+
+# Public API: you *could* later restrict who can set role via /users,
+# but the DB default is still 'user'.
 class UserCreate(BaseModel):
     full_name: str = Field(min_length=1)
     preferred_name: str = Field(min_length=1)
@@ -45,6 +49,7 @@ class UserCreate(BaseModel):
     grad_month: int = Field(ge=1, le=12)
     country: str
     profile_image_url: Optional[str] = None
+    role: Literal["user", "coach", "admin"] = "user"
 
 class UserUpdate(BaseModel):
     full_name: Optional[str] = None
@@ -58,6 +63,8 @@ class UserUpdate(BaseModel):
     grad_month: Optional[int] = Field(default=None, ge=1, le=12)
     country: Optional[str] = None
     profile_image_url: Optional[str] = None
+    role: Optional[Literal["user", "coach", "admin"]] = None
+
 
 @router.get("")
 def list_users(q: Optional[str] = Query(None, description="Search by name or email")):
@@ -72,6 +79,7 @@ def list_users(q: Optional[str] = Query(None, description="Search by name or ema
         rows = db.fetchall(conn, sql, params)
     return {"items": rows}
 
+
 @router.get("/{user_id}")
 def get_user(user_id: int):
     with db.connect() as conn:
@@ -79,6 +87,7 @@ def get_user(user_id: int):
     if not row:
         raise HTTPException(status_code=404, detail="User not found")
     return row
+
 
 @router.get("/by-email")
 def get_user_by_email(email: EmailStr):
@@ -88,13 +97,14 @@ def get_user_by_email(email: EmailStr):
         raise HTTPException(status_code=404, detail="User not found")
     return row
 
+
 @router.post("")
 def create_user(payload: UserCreate):
     with db.connect() as conn:
         sql = (
             "INSERT INTO users (full_name, preferred_name, email, codeforces_handle, birthdate, degree_program, "
-            "entry_year, entry_month, grad_year, grad_month, country, profile_image_url) "
-            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *"
+            "entry_year, entry_month, grad_year, grad_month, country, profile_image_url, role) "
+            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *"
         )
         row = db.fetchone(
             conn,
@@ -112,9 +122,11 @@ def create_user(payload: UserCreate):
                 payload.grad_month,
                 payload.country,
                 payload.profile_image_url,
+                payload.role,
             ],
         )
     return row
+
 
 @router.patch("/{user_id}")
 def update_user(user_id: int, payload: UserUpdate):
@@ -128,6 +140,7 @@ def update_user(user_id: int, payload: UserUpdate):
     if not row:
         raise HTTPException(status_code=404, detail="User not found")
     return row
+
 
 @router.delete("/{user_id}")
 def delete_user(user_id: int):

@@ -54,6 +54,7 @@ def ensure_table(conn):
         cur.execute(DDL_SESSIONS_ACTIVE_IDX)
     conn.commit()
 
+
 class SignUp(BaseModel):
     # user profile
     full_name: str = Field(min_length=1)
@@ -71,11 +72,13 @@ class SignUp(BaseModel):
     # local auth
     password: str = Field(min_length=8)
 
+
 class Login(BaseModel):
     email: EmailStr
     password: str
     create_session: bool = True
     ttl_minutes: int = 60 * 24
+
 
 def get_current_user(request: Request):
     # read cookie
@@ -100,9 +103,11 @@ def get_current_user(request: Request):
         user = db.fetchone(conn, "SELECT * FROM users WHERE id=%s", [sess["user_id"]])
     return {"session": sess, "user": user}
 
+
 @router.get("/me")
 def me(current = Depends(get_current_user)):
     return current
+
 
 @router.post("/logout")
 def logout(response: Response, request: Request):
@@ -156,17 +161,24 @@ def signup(payload: SignUp):
                 )
 
             # ---- Create user ----
+            # First user in the table becomes 'admin', others become 'user'
             user = db.fetchone(
                 conn,
                 """
                 INSERT INTO users
                   (full_name, preferred_name, email, codeforces_handle, birthdate,
                    degree_program, entry_year, entry_month, grad_year, grad_month,
-                   country, profile_image_url)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                   country, profile_image_url, role)
+                VALUES (
+                   %s,%s,%s,%s,%s,
+                   %s,%s,%s,%s,%s,
+                   %s,%s,
+                   (SELECT CASE WHEN COUNT(*) = 0 THEN 'admin' ELSE 'user' END FROM users)
+                )
                 RETURNING id, full_name, preferred_name, email, codeforces_handle,
                           birthdate, degree_program, entry_year, entry_month,
-                          grad_year, grad_month, country, profile_image_url, created_at
+                          grad_year, grad_month, country, profile_image_url,
+                          role, created_at
                 """,
                 [
                     payload.full_name,
@@ -200,14 +212,12 @@ def signup(payload: SignUp):
             conn.commit()
 
         except HTTPException:
-            # clean 4xx errors we intentionally raised
             conn.rollback()
             raise
 
         except Exception as e:
             conn.rollback()
             msg = str(e).lower()
-            # Map constraint names to nice 409 messages
             if "users_email_key" in msg:
                 raise HTTPException(status_code=409, detail="Email already registered")
             if "users_codeforces_handle_key" in msg:
@@ -218,11 +228,10 @@ def signup(payload: SignUp):
                 raise HTTPException(status_code=409, detail="Local identity already exists for this user")
             if "auth_identities_provider_uid_uq" in msg:
                 raise HTTPException(status_code=409, detail="This provider identity already exists")
-            # Anything else is a real unexpected error → 500
             raise HTTPException(status_code=500, detail="Internal error during signup")
 
-    # ✅ Success: user was created and committed, no session created.
     return {"user": user, "identity": identity}
+
 
 
 @router.post("/login")
@@ -260,8 +269,6 @@ def login(payload: Login, response: Response):
                 [ident["user_id"]],
             )
             if active:
-                # If you'd rather REPLACE, delete here instead of raising:
-                # db.execute(conn, "UPDATE sessions SET revoked_at=NOW() WHERE user_id=%s AND revoked_at IS NULL", [ident["user_id"]])
                 raise HTTPException(status_code=409, detail="Already logged in on this browser. Log out first.")
 
             raw_token, token_sha256 = _new_session_token()
@@ -276,8 +283,6 @@ def login(payload: Login, response: Response):
                 [ident["user_id"], token_sha256, expires_at],
             )
 
-        # Set signed/secure cookie
-        # (Use `secure=True` when served over HTTPS; SameSite=Lax is OK for login flows)
         response.set_cookie(
             key=SESSION_COOKIE_NAME,
             value=raw_token,
@@ -289,7 +294,7 @@ def login(payload: Login, response: Response):
         )
         result["session"] = session_row
 
-    # 4) user profile
+    # 4) user profile (now includes role)
     with db.connect() as conn:
         user = db.fetchone(conn, "SELECT * FROM users WHERE id=%s", [ident["user_id"]])
     result["user"] = user

@@ -16,8 +16,6 @@ from .tables import (
     resources,
     events,
     auth_identities,
-    roles,
-    user_roles,
     email_verification_tokens,
     password_reset_tokens,
     audit_logs,
@@ -79,8 +77,6 @@ def create_app() -> FastAPI:
     app.include_router(resources.router)
     app.include_router(events.router)
     app.include_router(auth_identities.router)
-    app.include_router(roles.router)
-    app.include_router(user_roles.router)
     app.include_router(email_verification_tokens.router)
     app.include_router(password_reset_tokens.router)
     app.include_router(audit_logs.router)
@@ -103,8 +99,6 @@ def create_app() -> FastAPI:
                     ("resources", resources),
                     ("events", events),
                     ("auth_identities", auth_identities),
-                    ("roles", roles),
-                    ("user_roles", user_roles),
                     ("email_verification_tokens", email_verification_tokens),
                     ("password_reset_tokens", password_reset_tokens),
                     ("audit_logs", audit_logs),
@@ -113,10 +107,10 @@ def create_app() -> FastAPI:
                 ]:
                     try:
                         mod.ensure_table(conn)
-                        conn.commit()               # ✅ commit success
+                        conn.commit()
                         db_status[name] = {"ok": True}
                     except Exception as e:
-                        conn.rollback()             # ✅ clear failed tx
+                        conn.rollback()
                         logger.exception("ensure_table failed for %s", name)
                         db_status[name] = {"ok": False, "error": str(e)}
         except Exception as e:  # pragma: no cover

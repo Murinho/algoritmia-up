@@ -18,6 +18,7 @@ const NAV_ITEMS_LOGGED_IN = [
   { name: "Inicio", href: "/" },
   { name: "Historia", href: "/historia" },
   { name: "Eventos", href: "/eventos" },
+  { name: "Recursos", href: "/recursos" },
   { name: "Leaderboard", href: "/leaderboard" },
   { name: "Perfil", href: "/perfil" },
 ];
