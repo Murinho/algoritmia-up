@@ -32,3 +32,24 @@ export type LoginResponse = {
   user: User;
   session?: Session;
 };
+
+export type SignUpPayload = {
+  full_name: string;
+  preferred_name: string;
+  email: string;
+  codeforces_handle: string;
+  birthdate: string;           // "YYYY-MM-DD"
+  degree_program: string;
+  entry_year: number;
+  entry_month: number;
+  grad_year: number;
+  grad_month: number;
+  country: string;             // your 2-letter code is fine if that's what you store
+  profile_image_url?: string | null;
+  password: string;
+};
+
+export type SignUpResponse = {
+  user: unknown;
+  identity: unknown;
+};
