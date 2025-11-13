@@ -63,6 +63,9 @@ class SignUp(BaseModel):
     birthdate: date
     degree_program: str
     entry_year: int = Field(ge=2000, le=2100)
+    entry_month: int = Field(ge=1, le=12)
+    grad_year: int = Field(ge=2000, le=2100)
+    grad_month: int = Field(ge=1, le=12)
     country: str
     profile_image_url: Optional[str] = None
     # local auth
@@ -120,64 +123,107 @@ def logout(response: Response, request: Request):
     response.delete_cookie(SESSION_COOKIE_NAME, path="/")
     return {"ok": True}
 
+
 @router.post("/signup")
 def signup(payload: SignUp):
+    """
+    Create a user + local auth identity.
+    NOTE: This DOES NOT log the user in or create a session.
+    Frontend should redirect to the login page on success.
+    """
     pwd_hash = argon2.hash(payload.password)
 
     with db.connect() as conn:
         try:
-            with conn.cursor() as cur:
-                # 1) create user
-                cur.execute(
-                    """
-                    INSERT INTO users
-                      (full_name, preferred_name, email, codeforces_handle, birthdate, degree_program,
-                       entry_year, country, profile_image_url)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
-                    RETURNING id, full_name, preferred_name, email, codeforces_handle, birthdate,
-                              degree_program, entry_year, country, profile_image_url, created_at
-                    """,
-                    [
-                        payload.full_name,
-                        payload.preferred_name,
-                        str(payload.email),
-                        payload.codeforces_handle,
-                        payload.birthdate,
-                        payload.degree_program,
-                        payload.entry_year,
-                        payload.country,
-                        payload.profile_image_url,
-                    ],
-                )
-                user = cur.fetchone()
-                user_id = user["id"]
+            # ---- Pre-checks for clean 409s ----
+            existing_user = db.fetchone(
+                conn,
+                "SELECT 1 FROM users WHERE email=%s",
+                [str(payload.email)],
+            )
+            if existing_user:
+                raise HTTPException(status_code=409, detail="Email already registered")
 
-                # 2) bind local identity
-                cur.execute(
-                    """
-                    INSERT INTO auth_identities
-                      (user_id, provider, provider_uid, email, password_hash, email_verified_at)
-                    VALUES (%s,'local',NULL,%s,%s,NULL)
-                    RETURNING id, user_id, provider, provider_uid, email, created_at
-                    """,
-                    [user_id, str(payload.email), pwd_hash],
+            existing_local = db.fetchone(
+                conn,
+                "SELECT 1 FROM auth_identities WHERE provider='local' AND email=%s",
+                [str(payload.email)],
+            )
+            if existing_local:
+                raise HTTPException(
+                    status_code=409,
+                    detail="Local account already exists for this email",
                 )
-                identity = cur.fetchone()
+
+            # ---- Create user ----
+            user = db.fetchone(
+                conn,
+                """
+                INSERT INTO users
+                  (full_name, preferred_name, email, codeforces_handle, birthdate,
+                   degree_program, entry_year, entry_month, grad_year, grad_month,
+                   country, profile_image_url)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                RETURNING id, full_name, preferred_name, email, codeforces_handle,
+                          birthdate, degree_program, entry_year, entry_month,
+                          grad_year, grad_month, country, profile_image_url, created_at
+                """,
+                [
+                    payload.full_name,
+                    payload.preferred_name,
+                    str(payload.email),
+                    payload.codeforces_handle,
+                    payload.birthdate,
+                    payload.degree_program,
+                    payload.entry_year,
+                    payload.entry_month,
+                    payload.grad_year,
+                    payload.grad_month,
+                    payload.country,
+                    payload.profile_image_url,
+                ],
+            )
+            user_id = user["id"]
+
+            # ---- Create local identity (no session, no provider_uid) ----
+            identity = db.fetchone(
+                conn,
+                """
+                INSERT INTO auth_identities
+                  (user_id, provider, provider_uid, email, password_hash, email_verified_at)
+                VALUES (%s,'local',NULL,%s,%s,NULL)
+                RETURNING id, user_id, provider, provider_uid, email, created_at
+                """,
+                [user_id, str(payload.email), pwd_hash],
+            )
 
             conn.commit()
+
+        except HTTPException:
+            # clean 4xx errors we intentionally raised
+            conn.rollback()
+            raise
 
         except Exception as e:
             conn.rollback()
             msg = str(e).lower()
+            # Map constraint names to nice 409 messages
             if "users_email_key" in msg:
                 raise HTTPException(status_code=409, detail="Email already registered")
             if "users_codeforces_handle_key" in msg:
                 raise HTTPException(status_code=409, detail="Codeforces handle already in use")
             if "auth_identities_local_email_uq" in msg:
                 raise HTTPException(status_code=409, detail="Local account already exists for this email")
-            raise
+            if "auth_identities_user_provider_uq" in msg:
+                raise HTTPException(status_code=409, detail="Local identity already exists for this user")
+            if "auth_identities_provider_uid_uq" in msg:
+                raise HTTPException(status_code=409, detail="This provider identity already exists")
+            # Anything else is a real unexpected error → 500
+            raise HTTPException(status_code=500, detail="Internal error during signup")
 
+    # ✅ Success: user was created and committed, no session created.
     return {"user": user, "identity": identity}
+
 
 @router.post("/login")
 def login(payload: Login, response: Response):

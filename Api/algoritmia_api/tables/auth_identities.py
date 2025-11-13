@@ -33,10 +33,16 @@ CREATE UNIQUE INDEX IF NOT EXISTS auth_identities_local_email_uq
 ON auth_identities (email) WHERE provider = 'local';
 """
 
-# Optional: uniqueness of (provider, COALESCE(provider_uid,'local')) to protect oauth duplicates
+# --- IMPORTANT: replace the old COALESCE unique with a sane partial unique ---
+DDL_DROP_OLD_PROVIDER_UID = """
+DROP INDEX IF EXISTS auth_identities_provider_uid_uq;
+"""
+
+# Uniqueness for OAuth (provider, provider_uid) when provider_uid IS NOT NULL
 DDL_IDX_PROVIDER_UID = """
 CREATE UNIQUE INDEX IF NOT EXISTS auth_identities_provider_uid_uq
-ON auth_identities (provider, COALESCE(provider_uid, 'local'));
+ON auth_identities (provider, provider_uid)
+WHERE provider_uid IS NOT NULL;
 """
 
 # CHECK: local requires email and password_hash (guarded with DO block to be idempotent)
@@ -50,7 +56,6 @@ BEGIN
     OR (provider = 'local' AND email IS NOT NULL AND password_hash IS NOT NULL)
   );
 EXCEPTION WHEN duplicate_object THEN
-  -- already added
   NULL;
 END $$;
 """
@@ -60,6 +65,8 @@ def ensure_table(conn):
         cur.execute(DDL)
         cur.execute(DDL_IDX_USER_PROVIDER)
         cur.execute(DDL_IDX_LOCAL_EMAIL)
+        # drop the problematic legacy unique and create the correct partial unique
+        cur.execute(DDL_DROP_OLD_PROVIDER_UID)
         cur.execute(DDL_IDX_PROVIDER_UID)
         cur.execute(DDL_CHECK_LOCAL_REQ)
     conn.commit()
@@ -71,7 +78,7 @@ class IdentityCreate(BaseModel):
     provider: str = "local"
     provider_uid: Optional[str] = None
 
-@router.get("")
+@router.get("/")
 def list_auth_identities(user_id: Optional[int] = None):
     base = "SELECT * FROM auth_identities"
     params: list = []
@@ -83,29 +90,45 @@ def list_auth_identities(user_id: Optional[int] = None):
         rows = db.fetchall(conn, base, params)
     return {"items": rows}
 
-@router.post("")
+@router.post("/")
 def create_auth_identity(payload: IdentityCreate):
     """
     Use this to manually link an identity (e.g., after OAuth completes).
-    For 'local', you MUST provide email + password (CHECK constraint enforces).
+    For 'local', you MUST provide email + password (CHECK constraint also enforces this).
     """
-    pwd_hash = None
-    if payload.password:
+    if payload.provider == "local":
+        if not payload.email or not payload.password:
+            raise HTTPException(status_code=422, detail="Local identity requires email and password")
+        # For local, keep provider_uid as NULL (works with partial unique)
         pwd_hash = argon2.hash(payload.password)
+    else:
+        pwd_hash = None
 
-    with db.connect() as conn:
-        row = db.fetchone(
-            conn,
-            """
-            INSERT INTO auth_identities(user_id, provider, provider_uid, email, password_hash)
-            VALUES (%s,%s,%s,%s,%s) RETURNING *
-            """,
-            [
-                payload.user_id,
-                payload.provider,
-                payload.provider_uid,
-                str(payload.email) if payload.email else None,
-                pwd_hash,
-            ],
-        )
-    return row
+    try:
+        with db.connect() as conn:
+            row = db.fetchone(
+                conn,
+                """
+                INSERT INTO auth_identities(user_id, provider, provider_uid, email, password_hash)
+                VALUES (%s,%s,%s,%s,%s)
+                RETURNING id, user_id, provider, provider_uid, email, created_at
+                """,
+                [
+                    payload.user_id,
+                    payload.provider,
+                    payload.provider_uid,  # keep None for 'local'
+                    str(payload.email) if payload.email else None,
+                    pwd_hash,
+                ],
+            )
+        return row
+    except Exception as e:
+        msg = str(e).lower()
+        # Map uniques to clean 409s
+        if "auth_identities_user_provider_uq" in msg:
+            raise HTTPException(status_code=409, detail="User already has an identity for this provider")
+        if "auth_identities_local_email_uq" in msg:
+            raise HTTPException(status_code=409, detail="Local account already exists for this email")
+        if "auth_identities_provider_uid_uq" in msg:
+            raise HTTPException(status_code=409, detail="This provider identity already exists")
+        raise
