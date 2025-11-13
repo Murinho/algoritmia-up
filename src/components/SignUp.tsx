@@ -75,6 +75,10 @@ function isValidDate(yyyy: number, mm: number, dd: number) {
   return dt.getFullYear() === yyyy && dt.getMonth() === mm - 1 && dt.getDate() === dd;
 }
 
+// Good default: use env base URL if set; otherwise fall back to relative calls
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/+$/, "") || "";
+
 export default function SignUp() {
   const currentYear = new Date().getFullYear();
   const birthYears = useMemo(
@@ -90,15 +94,52 @@ export default function SignUp() {
   const router = useRouter();
   const redirectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
-    return () => {
-      if (redirectTimer.current) clearTimeout(redirectTimer.current);
-    };
-  }, []);
-
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  // NEW: auth guard state
+  const [checkingAuth, setCheckingAuth] = useState(true);
+  const [authMessage, setAuthMessage] = useState<string | null>(null);
+
+  // NEW: Check if there is already an active session; if so, block signup
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/auth/me`, {
+          method: "GET",
+          credentials: "include",
+        });
+
+        if (cancelled) return;
+
+        if (res.ok) {
+          // User already logged in → do not show SignUp, redirect instead
+          setAuthMessage("Ya tienes una sesión activa. Redirigiendo a tu perfil…");
+          redirectTimer.current = setTimeout(() => {
+            router.replace("/perfil");
+          }, 900);
+        } else {
+          // Not authenticated → allow signup form
+          setAuthMessage(null);
+        }
+      } catch {
+        if (!cancelled) {
+          // Treat network error as "not logged in" and allow signup
+          setAuthMessage(null);
+        }
+      } finally {
+        if (!cancelled) setCheckingAuth(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      if (redirectTimer.current) clearTimeout(redirectTimer.current);
+    };
+  }, [router]);
 
   const disabled = submitting;
 
@@ -201,6 +242,28 @@ export default function SignUp() {
     }
   };
 
+  // ===== Early guard UI =====
+  if (checkingAuth) {
+    return (
+      <div className="grid min-h-[100svh] place-items-center bg-gradient-to-br from-[#0D0D0D] via-[#2c1e28] to-[#C5133D]">
+        <div className="rounded-xl border border-white/15 bg-white/10 px-6 py-4 text-white/90 backdrop-blur">
+          Verificando sesión…
+        </div>
+      </div>
+    );
+  }
+
+  if (authMessage) {
+    return (
+      <div className="grid min-h-[100svh] place-items-center bg-gradient-to-br from-[#0D0D0D] via-[#2c1e28] to-[#C5133D]">
+        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-6 py-4 text-emerald-200 backdrop-blur">
+          {authMessage}
+        </div>
+      </div>
+    );
+  }
+
+  // ===== Normal SignUp UI (only when NOT logged in) =====
   return (
     <section
       aria-labelledby="signup-title"

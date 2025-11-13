@@ -5,14 +5,20 @@ import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
 import Image from "next/image";
 
-const NAV_ITEMS = [
+const NAV_ITEMS_LOGGED_OUT = [
   { name: "Inicio", href: "/" },
   { name: "Historia", href: "/historia" },
   { name: "Eventos", href: "/eventos" },
-  { name: "Recursos", href: "/recursos" },
   { name: "Leaderboard", href: "/leaderboard" },
   { name: "Login", href: "/login" },
   { name: "Sign Up", href: "/signup" },
+];
+
+const NAV_ITEMS_LOGGED_IN = [
+  { name: "Inicio", href: "/" },
+  { name: "Historia", href: "/historia" },
+  { name: "Eventos", href: "/eventos" },
+  { name: "Leaderboard", href: "/leaderboard" },
   { name: "Perfil", href: "/perfil" },
 ];
 
@@ -20,40 +26,71 @@ export default function MainNavbar() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
+  // 🔐 Auth state
+  const [isAuthed, setIsAuthed] = useState<boolean | null>(null);
+  const API_BASE =
+    process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/+$/, "") || "";
+
   // Close mobile menu on route change
   useEffect(() => {
     setOpen(false);
   }, [pathname]);
+
+  // ✅ Re-check session whenever the route changes
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/auth/me`, {
+          method: "GET",
+          credentials: "include",
+        });
+        if (!cancelled) {
+          setIsAuthed(res.ok);
+        }
+      } catch {
+        if (!cancelled) {
+          setIsAuthed(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [API_BASE, pathname]); // 👈 key change: include `pathname` here
 
   const isActive = (href: string) => {
     if (href === "/") return pathname === "/";
     return pathname === href || pathname.startsWith(`${href}/`);
   };
 
+  // If we don't yet know, treat as logged out (shows login/signup until we know)
+  const navItems = isAuthed ? NAV_ITEMS_LOGGED_IN : NAV_ITEMS_LOGGED_OUT;
+
   return (
-    <header
-      className="sticky top-0 z-50 bg-[rgb(197,19,61)] text-white shadow h-16 [--nav-h:64px]" // 64px = h-16
-    >
+    <header className="sticky top-0 z-50 bg-[rgb(197,19,61)] text-white shadow h-16 [--nav-h:64px]">
       <nav className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between">
-            {/* Brand */}
-            <Link href="/" className="flex items-center gap-3 text-white">
-                <Image
-                    src="/algoritmia-logo-red-white.png"   // or .svg / .webp
-                    alt="Algoritmia UP"
-                    width={32}
-                    height={32}
-                    priority
-                    className="h-8 w-8 rounded-md object-contain"
-                />
-                <span className="text-lg sm:text-xl font-extrabold tracking-tight">
-                    Algoritmia UP
-                </span>
-            </Link>
+          {/* Brand */}
+          <Link href="/" className="flex items-center gap-3 text-white">
+            <Image
+              src="/algoritmia-logo-red-white.png"
+              alt="Algoritmia UP"
+              width={32}
+              height={32}
+              priority
+              className="h-8 w-8 rounded-md object-contain"
+            />
+            <span className="text-lg sm:text-xl font-extrabold tracking-tight">
+              Algoritmia UP
+            </span>
+          </Link>
 
           {/* Desktop menu */}
           <ul className="hidden gap-1 md:flex">
-            {NAV_ITEMS.map(({ name, href }) => (
+            {navItems.map(({ name, href }) => (
               <li key={href}>
                 <Link
                   href={href}
@@ -107,7 +144,7 @@ export default function MainNavbar() {
         {/* Mobile menu */}
         {open && (
           <ul className="md:hidden pb-3 pt-2 bg-[rgb(197,19,61)] text-white shadow-lg rounded-b-lg">
-            {NAV_ITEMS.map(({ name, href }) => (
+            {navItems.map(({ name, href }) => (
               <li key={href}>
                 <Link
                   href={href}
