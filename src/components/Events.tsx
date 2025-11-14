@@ -2,9 +2,12 @@
 
 import Image from 'next/image';
 import { Calendar, MapPin, Clock, Users, ArrowRight } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import CreateEventButton from './CreateEventButton';
 import type { EventItem } from './EventCreateDialog';
+import { API_BASE } from '@/lib/api'; // ✅ reuse your existing API base
+
+type UserRole = 'user' | 'coach' | 'admin';
 
 function statusClasses(s: EventItem['status']) {
   if (s === 'Próximo') return 'bg-red-100 text-red-800';
@@ -134,8 +137,40 @@ export default function EventsSection() {
     },
   ]);
 
-  // Example user role (in real app you’d get this from session or context)
-  const userRole: 'user' | 'coach' | 'admin' = 'coach';
+  const [userRole, setUserRole] = useState<UserRole | null>(null);
+
+  // ⬇️ Load current user role from /auth/me
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadRole() {
+      try {
+        const res = await fetch(`${API_BASE}/auth/me`, {
+          credentials: 'include',
+        });
+
+        if (!res.ok) {
+          if (!cancelled) setUserRole(null); // not logged in or error → treat as basic user
+          return;
+        }
+
+        const data = await res.json();
+        const role = data.user?.role as UserRole | undefined;
+        if (!cancelled) {
+          setUserRole(role ?? 'user');
+        }
+      } catch {
+        if (!cancelled) setUserRole(null);
+      }
+    }
+
+    loadRole();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const canCreate = userRole === 'coach' || userRole === 'admin';
 
   return (
     <section id="events" className="bg-gray-50 py-20">
@@ -154,13 +189,15 @@ export default function EventsSection() {
           </p>
         </div>
 
-        {/* Create Button */}
-        <div className="flex justify-end mb-10">
-          <CreateEventButton
-            userRole={userRole}
-            onCreate={(newEvent) => setEvents((prev) => [newEvent, ...prev])}
-          />
-        </div>
+        {/* Create Button — only for coach/admin */}
+        {canCreate && (
+          <div className="flex justify-end mb-10">
+            <CreateEventButton
+              userRole={userRole}
+              onCreate={(newEvent) => setEvents((prev) => [newEvent, ...prev])}
+            />
+          </div>
+        )}
 
         {/* Grid */}
         <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
