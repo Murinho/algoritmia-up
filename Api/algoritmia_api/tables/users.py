@@ -1,12 +1,20 @@
 from datetime import date
-from typing import Optional, Literal  # 👈 added Literal
+from typing import Optional, Literal
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, UploadFile, File, Depends
 from pydantic import BaseModel, EmailStr, Field
 
+from pathlib import Path
+import secrets
+import os
+
 from .. import db
+from .auth import get_current_user
 
 router = APIRouter(prefix="/users", tags=["Users"])
+
+AVATAR_DIR = Path("uploads/avatars")
+AVATAR_DIR.mkdir(parents=True, exist_ok=True)
 
 DDL = """
 CREATE TABLE IF NOT EXISTS users (
@@ -149,3 +157,93 @@ def delete_user(user_id: int):
     if count == 0:
         raise HTTPException(status_code=404, detail="User not found")
     return {"deleted": True}
+
+@router.post("/me/avatar")
+async def upload_avatar(
+    file: UploadFile = File(...),
+    auth_ctx = Depends(get_current_user),
+):
+    """
+    Upload a profile picture for the current user.
+    Stores it under uploads/avatars and returns the URL path.
+    """
+    # auth_ctx = {"session": ..., "user": {...}}
+    user = auth_ctx["user"]
+    user_id = user["id"]
+
+    if file.content_type not in {"image/jpeg", "image/png", "image/webp"}:
+        raise HTTPException(status_code=400, detail="Formato de imagen no soportado.")
+
+    ext_map = {
+        "image/jpeg": ".jpg",
+        "image/png": ".png",
+        "image/webp": ".webp",
+    }
+    ext = ext_map.get(file.content_type, ".jpg")
+
+    # Generate filename: user_<id>_<random>.ext
+    random_part = secrets.token_hex(8)
+    filename = f"user_{user_id}_{random_part}{ext}"
+    dest_path = AVATAR_DIR / filename
+
+    contents = await file.read()
+    with dest_path.open("wb") as f:
+        f.write(contents)
+
+    public_path = f"/static/avatars/{filename}"
+
+    # Save to DB
+    with db.connect() as conn:
+        row = db.fetchone(
+            conn,
+            "UPDATE users SET profile_image_url = %s WHERE id=%s RETURNING profile_image_url",
+            [public_path, user_id],
+        )
+
+    if not row:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    return {"profile_image_url": row["profile_image_url"]}
+
+
+@router.delete("/me/avatar")
+def delete_avatar(auth_ctx = Depends(get_current_user)):
+    """
+    Remove the current user's profile picture (DB and file on disk).
+    """
+    user = auth_ctx["user"]
+    user_id = user["id"]
+
+    with db.connect() as conn:
+        # Get old path
+        row = db.fetchone(
+            conn,
+            "SELECT profile_image_url FROM users WHERE id=%s",
+            [user_id],
+        )
+        if not row:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        old_path = row["profile_image_url"]
+
+        # Set to NULL in DB
+        db.fetchone(
+            conn,
+            "UPDATE users SET profile_image_url = NULL WHERE id=%s RETURNING id",
+            [user_id],
+        )
+
+    # Try to delete file from disk (best effort)
+    if old_path and old_path.startswith("/static/avatars/"):
+        filename = old_path.rsplit("/", 1)[-1]
+        file_path = AVATAR_DIR / filename
+        try:
+            if file_path.exists():
+                file_path.unlink()
+        except Exception:
+            # don't crash if file deletion fails
+            pass
+
+    return {"profile_image_url": None}
+
+

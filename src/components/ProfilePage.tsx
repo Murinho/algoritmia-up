@@ -77,6 +77,13 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
 
+  // password editing state
+  const [passwordForm, setPasswordForm] = useState({
+    current: "",
+    next: "",
+    confirm: "",
+  });
+
   // NEW: auth guard state
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
@@ -88,9 +95,8 @@ export default function ProfilePage() {
     process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/+$/, "") || "";
 
   // Avatar handling
-  const [avatarPreview, setAvatarPreview] = useState<string>(
-    mockUser.avatarUrl || ""
-  );
+  const [avatarPreview, setAvatarPreview] = useState<string>("");
+
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const DAYS = useMemo(
@@ -140,7 +146,6 @@ export default function ProfilePage() {
           }
           return;
         }
-        // Optional: hydrate from backend user
         const data = await res.json();
         const u = data?.user;
         if (!cancelled && u) {
@@ -172,20 +177,18 @@ export default function ProfilePage() {
                 : undefined) ?? prev.gradMonth,
             // country
             countryCode:
-              // You can store ISO codes in DB or map from names as needed
-              u.country
-                ? u.country.length === 2
-                  ? u.country.toLowerCase()
-                  : prev.countryCode
+              u.country && u.country.length === 2
+                ? u.country.toLowerCase()
                 : prev.countryCode,
-            // profile_image_url
+            // profile_image_url (raw path from DB)
             avatarUrl: u.profile_image_url ?? prev.avatarUrl,
-            // non-editable but maybe useful later
             role: u.role ?? prev.role,
             createdAt: u.created_at ?? prev.createdAt,
           }));
+
           if (u.profile_image_url) {
-            setAvatarPreview(u.profile_image_url);
+            // full URL for the <img />
+            setAvatarPreview(`${API_BASE}${u.profile_image_url}`);
           }
         }
       } catch {
@@ -203,48 +206,90 @@ export default function ProfilePage() {
   }, [API_BASE, router]);
 
   const onPickAvatar = () => fileInputRef.current?.click();
-  const onFileChange: React.ChangeEventHandler<HTMLInputElement> = (e) => {
+  const onFileChange: React.ChangeEventHandler<HTMLInputElement> = async (e) => {
     const f = e.target.files?.[0];
     if (!f) return;
-    const url = URL.createObjectURL(f);
-    setAvatarPreview(url);
-    // TODO: keep file in state if you want to upload it later
+
+    // Local preview (immediate feedback)
+    const localUrl = URL.createObjectURL(f);
+    setAvatarPreview(localUrl);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", f);
+
+      const res = await fetch(`${API_BASE}/users/me/avatar`, {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      });
+
+      if (!res.ok) {
+        console.error("Avatar upload error:", await res.text());
+        alert("No se pudo subir la foto de perfil. Intenta de nuevo.");
+        return;
+      }
+
+      const data: { profile_image_url: string } = await res.json();
+
+      // Update form state with the DB path
+      setForm((prev) => ({
+        ...prev,
+        avatarUrl: data.profile_image_url,
+      }));
+
+      // Use the persisted URL from the backend (overrides the blob preview)
+      setAvatarPreview(`${API_BASE}${data.profile_image_url}`);
+    } catch (err) {
+      console.error("Avatar upload exception:", err);
+      alert("Error inesperado al subir la foto de perfil.");
+    }
   };
+
 
   const handleChange = (key: keyof typeof form, value: string) =>
     setForm((prev) => ({ ...prev, [key]: value }));
 
+  const handlePasswordChange = (field: keyof typeof passwordForm, value: string) =>
+    setPasswordForm((prev) => ({ ...prev, [field]: value }));
+
   const handleSave = async () => {
     setSaving(true);
+
     try {
-      // TODO:
-      // Map the UI fields back to your API payload:
-      // full_name, preferred_name, email, codeforces_handle,
-      // birthdate (YYYY-MM-DD from birthYear/birthMonth/birthDay),
-      // degree_program, entry_year, entry_month,
-      // grad_year, grad_month, country, profile_image_url
-      //
-      // Example (pseudo):
-      /*
-      const payload = {
-        full_name: form.fullName,
-        preferred_name: form.preferredName,
-        email: form.email,
-        codeforces_handle: form.codeforces,
-        birthdate: `${form.birthYear}-${form.birthMonth}-${form.birthDay}`,
-        degree_program: form.program,
-        entry_year: Number(form.uniYear),
-        entry_month: Number(form.uniMonth),
-        grad_year: Number(form.gradYear),
-        grad_month: Number(form.gradMonth),
-        country: mapCountryCodeToName(form.countryCode), // or store code directly
-        profile_image_url: form.avatarUrl,
-      };
-      await fetch(`${API_BASE}/users/me`, { method: "PATCH", ... });
-      */
+      const wantsPasswordChange =
+        passwordForm.current || passwordForm.next || passwordForm.confirm;
+
+      if (wantsPasswordChange) {
+        if (!passwordForm.current || !passwordForm.next || !passwordForm.confirm) {
+          alert("Para cambiar la contraseña, llena todos los campos de contraseña.");
+          setSaving(false);
+          return;
+        }
+        if (passwordForm.next !== passwordForm.confirm) {
+          alert("La nueva contraseña y la confirmación no coinciden.");
+          setSaving(false);
+          return;
+        }
+        if (passwordForm.next.length < 8) {
+          alert("La nueva contraseña debe tener al menos 8 caracteres.");
+          setSaving(false);
+          return;
+        }
+      }
+
+      // 1) PATCH /users/me (perfil)
+      // 2) PATCH /auth-identities/me/password si wantsPasswordChange
+      // (dejé los fetch comentados en la versión anterior)
+
       await new Promise((r) => setTimeout(r, 800)); // demo
+
       alert("Perfil actualizado ✅");
+      if (wantsPasswordChange) {
+        setPasswordForm({ current: "", next: "", confirm: "" });
+      }
     } catch (e) {
+      console.error(e);
       alert("No se pudo guardar. Intenta de nuevo.");
     } finally {
       setSaving(false);
@@ -256,7 +301,7 @@ export default function ProfilePage() {
       setLoggingOut(true);
       const res = await fetch(`${API_BASE}/auth/logout`, {
         method: "POST",
-        credentials: "include", // ⬅️ important: send cookies
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
       });
 
@@ -276,7 +321,6 @@ export default function ProfilePage() {
     }
   };
 
-  // Early guard UI
   if (checkingAuth) {
     return (
       <div className="grid min-h-[100svh] place-items-center bg-gradient-to-br from-[#0D0D0D] via-[#2c1e28] to-[#C5133D]">
@@ -362,7 +406,24 @@ export default function ProfilePage() {
                       </button>
                       {avatarPreview && (
                         <button
-                          onClick={() => setAvatarPreview("")}
+                          onClick={async () => {
+                            try {
+                              const res = await fetch(`${API_BASE}/users/me/avatar`, {
+                                method: "DELETE",
+                                credentials: "include",
+                              });
+                              if (!res.ok) {
+                                console.error("Avatar delete error:", await res.text());
+                                alert("No se pudo quitar la foto de perfil.");
+                                return;
+                              }
+                              setAvatarPreview("");
+                              setForm((prev) => ({ ...prev, avatarUrl: "" }));
+                            } catch (err) {
+                              console.error("Avatar delete exception:", err);
+                              alert("Error inesperado al quitar la foto de perfil.");
+                            }
+                          }}
                           className="rounded-xl border border-white/20 px-4 py-2 text-sm text-white/90 hover:bg-white/10"
                         >
                           Quitar
@@ -423,6 +484,7 @@ export default function ProfilePage() {
                   placeholder="e.g. adrianmuro"
                 />
 
+                {/* Programa + País side by side */}
                 <SelectField
                   label="Programa"
                   value={form.program}
@@ -430,6 +492,24 @@ export default function ProfilePage() {
                   options={PROGRAMS.map((p) => ({ value: p, label: p }))}
                   placeholder="Selecciona tu programa"
                 />
+
+                <div>
+                  <Label>País de origen</Label>
+                  <div className="mt-1 flex items-center gap-3">
+                    <CountryFlag code={form.countryCode} />
+                    <SelectField
+                      label=""
+                      hideLabel
+                      value={form.countryCode}
+                      onChange={(v) => handleChange("countryCode", v)}
+                      options={COUNTRIES.map((c) => ({
+                        value: c.code,
+                        label: c.name,
+                      }))}
+                      placeholder="Selecciona tu país"
+                    />
+                  </div>
+                </div>
 
                 {/* Fecha de nacimiento */}
                 <div className="sm:col-span-2">
@@ -510,27 +590,46 @@ export default function ProfilePage() {
                     />
                   </div>
                 </div>
+              </div>
 
-                {/* País de origen -> country */}
-                <div className="sm:col-span-2">
-                  <Label>País de origen</Label>
-                  <div className="mt-1 flex items-center gap-3">
-                    <CountryFlag code={form.countryCode} />
-                    <SelectField
-                      label=""
-                      hideLabel
-                      value={form.countryCode}
-                      onChange={(v) => handleChange("countryCode", v)}
-                      options={COUNTRIES.map((c) => ({
-                        value: c.code,
-                        label: c.name,
-                      }))}
-                      placeholder="Selecciona tu país"
+              {/* Security / password section */}
+              <div className="mt-8 border-t border-white/10 pt-5">
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-white/70">
+                  Seguridad
+                </h2>
+                <p className="mt-1 text-xs text-white/60">
+                  Cambia tu contraseña de Algoritmia UP. Por seguridad, nunca
+                  mostramos tu contraseña real.
+                </p>
+
+                <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  {/* Current password input for verification */}
+                  <div>
+                    <Label>Introduce tu contraseña actual</Label>
+                    <input
+                      type="password"
+                      value={passwordForm.current}
+                      onChange={(e) =>
+                        handlePasswordChange("current", e.target.value)
+                      }
+                      placeholder="Contraseña actual"
+                      className="mt-1 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2.5 text-sm text-white placeholder:text-white/40 outline-none ring-0 focus:border-white/30"
+                    />
+                  </div>
+
+                  <div>
+                    <Label>Nueva contraseña</Label>
+                    <input
+                      type="password"
+                      value={passwordForm.next}
+                      onChange={(e) =>
+                        handlePasswordChange("next", e.target.value)
+                      }
+                      placeholder="Mínimo 8 caracteres"
+                      className="mt-1 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2.5 text-sm text-white placeholder:text-white/40 outline-none ring-0 focus:border-white/30"
                     />
                   </div>
                 </div>
-
-                {/* Password typically handled elsewhere; omit here for security */}
               </div>
 
               <div className="mt-6 flex justify-end gap-3">
@@ -554,7 +653,7 @@ export default function ProfilePage() {
 
         {/* Optional: tips / footer */}
         <p className="mx-auto mt-6 max-w-5xl text-center text-xs text-white/60">
-          Para cambiar tu contraseña u otros ajustes avanzados, ve a{" "}
+          Para cambiar otros ajustes de cuenta avanzados, ve a{" "}
           <span className="text-white">Ajustes de cuenta</span>.
         </p>
       </section>
@@ -635,7 +734,6 @@ function SelectField({
 }
 
 function CountryFlag({ code }: { code: string }) {
-  // FlagCDN (SVG). Example: https://flagcdn.com/mx.svg
   return (
     <img
       src={

@@ -3,9 +3,7 @@ import secrets, hashlib
 from datetime import date, datetime, timedelta
 from typing import Optional
 
-from fastapi import Response, Request, Depends
-from fastapi import Cookie
-from fastapi import Depends
+from fastapi import Response, Request, Depends, Cookie
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, EmailStr, Field

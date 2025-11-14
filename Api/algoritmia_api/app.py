@@ -2,6 +2,7 @@ import os
 import time
 from threading import Lock
 from typing import Any, Dict, Optional
+from fastapi.staticfiles import StaticFiles
 import logging
 logger = logging.getLogger("alg-init")
 logging.basicConfig(level=logging.INFO)
@@ -54,7 +55,16 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-    # ---------------------------------
+
+    # Serve avatars from local disk
+    avatar_root = os.getenv("AVATAR_DIR", "uploads/avatars")
+    os.makedirs(avatar_root, exist_ok=True)
+
+    app.mount(
+        "/static/avatars",
+        StaticFiles(directory=avatar_root),
+        name="avatars",
+    )
 
     # Health/Version
     @app.get("/health")
