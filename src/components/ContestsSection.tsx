@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Calendar,
   Clock,
@@ -14,16 +14,18 @@ import {
   Plus,
 } from 'lucide-react';
 
-// ⬇️ Import the dialog (adjust the path if yours is different)
 import ContestCreateDialog, {
   type Contest as DialogContest,
   type Platform as DialogPlatform,
   type ContestFormat as DialogContestFormat,
 } from '@/components/ContestCreateDialog';
 
+import { API_BASE } from '@/lib/api'; // ✅ reuse API base
+
 // Keep local types in sync with the dialog to avoid TS union issues
 type Platform = DialogPlatform;
 type ContestFormat = DialogContestFormat;
+type UserRole = 'user' | 'coach' | 'admin';
 
 type Contest = {
   id: string;
@@ -103,9 +105,44 @@ export default function ContestsSection() {
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<SortState>({ key: 'startsAt', dir: 'desc' });
 
-  // ⬇️ New: local state for data + create dialog state
   const [contests, setContests] = useState<Contest[]>(seedContests);
   const [openCreate, setOpenCreate] = useState(false);
+
+  // ⬇️ Role state
+  const [userRole, setUserRole] = useState<UserRole | null>(null);
+
+  // ⬇️ Fetch current user role from /auth/me
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadRole() {
+      try {
+        const res = await fetch(`${API_BASE}/auth/me`, {
+          credentials: 'include',
+        });
+
+        if (!res.ok) {
+          if (!cancelled) setUserRole(null);
+          return;
+        }
+
+        const data = await res.json();
+        const role = data.user?.role as UserRole | undefined;
+        if (!cancelled) {
+          setUserRole(role ?? 'user');
+        }
+      } catch {
+        if (!cancelled) setUserRole(null);
+      }
+    }
+
+    loadRole();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const canCreate = userRole === 'coach' || userRole === 'admin';
 
   const data = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -153,7 +190,9 @@ export default function ContestsSection() {
     return (
       <button
         onClick={() => toggleSort(k)}
-        className={`inline-flex items-center gap-1 hover:underline ${active ? 'text-white' : 'text-white/80'}`}
+        className={`inline-flex items-center gap-1 hover:underline ${
+          active ? 'text-white' : 'text-white/80'
+        }`}
         aria-label={`Ordenar por ${label}`}
       >
         {label}
@@ -162,13 +201,10 @@ export default function ContestsSection() {
     );
   }
 
-  // ⬇️ When a contest is created in the dialog, add it to the table
   function handleCreate(newContest: DialogContest) {
-    // optimistic prepend; keep type compatibility
     setContests((prev) => [{ ...newContest }, ...prev]);
   }
 
-  // default season suggestion (e.g., "Fall 2025")
   const defaultSeason = 'Fall 2025';
 
   return (
@@ -176,7 +212,6 @@ export default function ContestsSection() {
       aria-labelledby="contests-title"
       className="relative min-h-[100dvh] pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] flex items-center"
     >
-      {/* Same gradient background */}
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-br from-[#0D0D0D] via-[#2c1e28] to-[#C5133D]"
@@ -185,10 +220,15 @@ export default function ContestsSection() {
       <div className="mx-auto max-w-7xl px-6 lg:px-8">
         {/* Header */}
         <div className="mb-8">
-          <h2 id="contests-title" className="text-center text-3xl font-semibold tracking-tight text-white sm:text-4xl">
+          <h2
+            id="contests-title"
+            className="text-center text-3xl font-semibold tracking-tight text-white sm:text-4xl"
+          >
             Contests
           </h2>
-          <p className="mt-2 text-center text-white/80">Rondas de práctica y selectivos organizados por la comunidad.</p>
+          <p className="mt-2 text-center text-white/80">
+            Rondas de práctica y selectivos organizados por la comunidad.
+          </p>
         </div>
 
         {/* Card shell */}
@@ -209,15 +249,19 @@ export default function ContestsSection() {
             </div>
 
             <div className="flex items-center gap-3">
-              <div className="text-xs text-white/80">{data.length} resultado{data.length === 1 ? '' : 's'}</div>
+              <div className="text-xs text-white/80">
+                {data.length} resultado{data.length === 1 ? '' : 's'}
+              </div>
 
-              <button
-                onClick={() => setOpenCreate(true)}
-                className="inline-flex items-center gap-2 rounded-xl bg-[#C5133D] px-4 py-2 text-sm font-medium text-white hover:brightness-110 transition"
-              >
-                <Plus className="h-4 w-4" />
-                Crear Contest
-              </button>
+              {canCreate && (
+                <button
+                  onClick={() => setOpenCreate(true)}
+                  className="inline-flex items-center gap-2 rounded-xl bg-[#C5133D] px-4 py-2 text-sm font-medium text-white hover:brightness-110 transition"
+                >
+                  <Plus className="h-4 w-4" />
+                  Crear Contest
+                </button>
+              )}
             </div>
           </div>
 
@@ -326,7 +370,10 @@ export default function ContestsSection() {
                         {new Date(c.startsAt).toLocaleDateString()}
                         <span className="inline-flex items-center gap-1">
                           <Clock className="ml-1 h-4 w-4" />
-                          {new Date(c.startsAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          {new Date(c.startsAt).toLocaleTimeString([], {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
                         </span>
                       </time>
                     </td>
@@ -342,7 +389,10 @@ export default function ContestsSection() {
                         {new Date(c.endsAt).toLocaleDateString()}
                         <span className="inline-flex items-center gap-1">
                           <Clock className="ml-1 h-4 w-4" />
-                          {new Date(c.endsAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          {new Date(c.endsAt).toLocaleTimeString([], {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
                         </span>
                       </time>
                     </td>
@@ -381,7 +431,7 @@ export default function ContestsSection() {
         </p>
       </div>
 
-      {/* ⬇️ Create dialog */}
+      {/* Create dialog (only opens if button is visible & clicked) */}
       <ContestCreateDialog
         open={openCreate}
         onClose={() => setOpenCreate(false)}
