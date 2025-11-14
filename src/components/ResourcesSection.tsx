@@ -18,13 +18,11 @@ import {
   Book,
 } from 'lucide-react';
 
-// ⬇️ Import the dialog and its types
 import ResourceCreateDialog, {
   type Resource as DialogResource,
   type ResourceType as DialogResourceType,
 } from '@/components/ResourceCreateDialog';
 
-// — Your table types —
 type ResourceType =
   | 'pdf'
   | 'blog'
@@ -33,19 +31,21 @@ type ResourceType =
   | 'sheet'
   | 'slideshow'
   | 'video'
-  | 'book'
+  | 'book';
 
 type Resource = {
   id: string;
   type: ResourceType;
   title: string;
   url: string;
-  topic: string[]; // multiple tags
+  topic: string[];
   difficulty: 1 | 2 | 3 | 4 | 5;
   addedBy: string;
-  createdAt: string; // ISO string or formatted date
+  createdAt: string;
   notes?: string;
 };
+
+type UserRole = 'user' | 'coach' | 'admin';
 
 const TYPE_ICON: Record<ResourceType, JSX.Element> = {
   pdf: <FileText className="h-4 w-4" />,
@@ -55,7 +55,7 @@ const TYPE_ICON: Record<ResourceType, JSX.Element> = {
   sheet: <SheetIcon className="h-4 w-4" />,
   slideshow: <Presentation className="h-4 w-4" />,
   video: <Video className="h-4 w-4" />,
-  book: <Book className="h-4 w-4" />
+  book: <Book className="h-4 w-4" />,
 };
 
 const seedResources: Resource[] = [
@@ -109,7 +109,7 @@ function Stars({ n }: { n: number }) {
 type SortKey = keyof Pick<Resource, 'type' | 'title' | 'difficulty' | 'addedBy' | 'createdAt'>;
 type SortState = { key: SortKey; dir: 'asc' | 'desc' };
 
-// ⬇️ Map dialog’s ResourceType → table’s lowercase ResourceType
+// Map dialog’s ResourceType → table’s lowercase ResourceType
 const mapType = (t: DialogResourceType): ResourceType => {
   switch (t) {
     case 'PDF':
@@ -128,6 +128,7 @@ const mapType = (t: DialogResourceType): ResourceType => {
     case 'Video':
       return 'video';
     case 'Book':
+      return 'book';
     case 'Repo':
     case 'Other':
     default:
@@ -141,6 +142,7 @@ export default function ResourcesSection() {
   // 🔒 Auth guard state
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<UserRole | null>(null);
   const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/+$/, '') || '';
 
   // Local UI state
@@ -149,7 +151,7 @@ export default function ResourcesSection() {
   const [resources, setResources] = useState<Resource[]>(seedResources);
   const [openCreate, setOpenCreate] = useState(false);
 
-  // 🔒 Check session on mount; redirect if unauthenticated
+  // 🔒 Check session + get role on mount
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -165,7 +167,12 @@ export default function ResourcesSection() {
           }
           return;
         }
-        // (Optional) hydrate resource permissions later based on user/role from res.json()
+
+        const data = await res.json();
+        const role = data.user?.role as UserRole | undefined;
+        if (!cancelled) {
+          setUserRole(role ?? 'user');
+        }
       } catch {
         if (!cancelled) {
           setAuthError('No hay sesión activa. Redirigiendo al login…');
@@ -179,6 +186,8 @@ export default function ResourcesSection() {
       cancelled = true;
     };
   }, [API_BASE, router]);
+
+  const canCreate = userRole === 'coach' || userRole === 'admin';
 
   const data = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -223,7 +232,9 @@ export default function ResourcesSection() {
     return (
       <button
         onClick={() => toggleSort(k)}
-        className={`inline-flex items-center gap-1 hover:underline ${active ? 'text-white' : 'text-white/80'}`}
+        className={`inline-flex items-center gap-1 hover:underline ${
+          active ? 'text-white' : 'text-white/80'
+        }`}
         aria-label={`Ordenar por ${label}`}
       >
         {label}
@@ -232,7 +243,6 @@ export default function ResourcesSection() {
     );
   }
 
-  // When a resource is created in the dialog, add it to the table
   function handleCreate(newResource: DialogResource) {
     const mapped: Resource = {
       id: newResource.id,
@@ -277,7 +287,7 @@ export default function ResourcesSection() {
         pb-[env(safe-area-inset-bottom)]
         flex items-center"
     >
-      {/* Background gradient (matches your other sections) */}
+      {/* Background gradient */}
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-tr from-[#0D0D0D] via-[#2c1e28] to-[#C5133D]"
@@ -297,7 +307,7 @@ export default function ResourcesSection() {
           </p>
         </div>
 
-        {/* Card shell with subtle top gradient accent */}
+        {/* Card shell */}
         <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md">
           <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-[#C5133D] via-fuchsia-500 to-amber-400 opacity-90" />
 
@@ -315,19 +325,23 @@ export default function ResourcesSection() {
             </div>
 
             <div className="flex items-center gap-3">
-              <div className="text-xs text-white/80">{data.length} resultado{data.length === 1 ? '' : 's'}</div>
+              <div className="text-xs text-white/80">
+                {data.length} resultado{data.length === 1 ? '' : 's'}
+              </div>
 
-              <button
-                onClick={() => setOpenCreate(true)}
-                className="inline-flex items-center gap-2 rounded-xl bg-[#C5133D] px-4 py-2 text-sm font-medium text-white hover:brightness-110 transition"
-              >
-                <Plus className="h-4 w-4" />
-                Crear Recurso
-              </button>
+              {canCreate && (
+                <button
+                  onClick={() => setOpenCreate(true)}
+                  className="inline-flex items-center gap-2 rounded-xl bg-[#C5133D] px-4 py-2 text-sm font-medium text-white hover:brightness-110 transition"
+                >
+                  <Plus className="h-4 w-4" />
+                  Crear Recurso
+                </button>
+              )}
             </div>
           </div>
 
-          {/* Table (scrollable on small screens) */}
+          {/* Table */}
           <div className="overflow-x-auto">
             <table className="min-w-[900px] w-full text-left text-sm text-white/90">
               <thead>
@@ -443,13 +457,11 @@ export default function ResourcesSection() {
           </div>
         </div>
 
-        {/* Small helper note */}
         <p className="mt-3 text-xs text-white/70">
           Tip: escribe “graphs”, “dp”, “video”, “pdf”, etc. en la búsqueda para filtrar rápido.
         </p>
       </div>
 
-      {/* ⬇️ The dialog itself */}
       <ResourceCreateDialog
         open={openCreate}
         onClose={() => setOpenCreate(false)}
