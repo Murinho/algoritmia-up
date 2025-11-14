@@ -165,9 +165,10 @@ async def upload_avatar(
 ):
     """
     Upload a profile picture for the current user.
-    Stores it under uploads/avatars and returns the URL path.
+    - Saves the new file
+    - Updates profile_image_url
+    - Deletes the previous file (if any and different)
     """
-    # auth_ctx = {"session": ..., "user": {...}}
     user = auth_ctx["user"]
     user_id = user["id"]
 
@@ -185,26 +186,51 @@ async def upload_avatar(
     random_part = secrets.token_hex(8)
     filename = f"user_{user_id}_{random_part}{ext}"
     dest_path = AVATAR_DIR / filename
+    public_path = f"/static/avatars/{filename}"
 
+    # Read file contents
     contents = await file.read()
     with dest_path.open("wb") as f:
         f.write(contents)
 
-    public_path = f"/static/avatars/{filename}"
-
-    # Save to DB
+    # --- DB: get old path + set new path ---
     with db.connect() as conn:
+        # Get the currently stored avatar path
         row = db.fetchone(
+            conn,
+            "SELECT profile_image_url FROM users WHERE id=%s",
+            [user_id],
+        )
+        if not row:
+            # roll back file write by deleting the new file
+            try:
+                if dest_path.exists():
+                    dest_path.unlink()
+            except Exception:
+                pass
+            raise HTTPException(status_code=404, detail="User not found")
+
+        old_path = row["profile_image_url"]
+
+        # Update to new path
+        updated = db.fetchone(
             conn,
             "UPDATE users SET profile_image_url = %s WHERE id=%s RETURNING profile_image_url",
             [public_path, user_id],
         )
 
-    if not row:
-        raise HTTPException(status_code=404, detail="User not found")
+    # --- Filesystem: delete old file if any ---
+    if old_path and old_path != public_path and old_path.startswith("/static/avatars/"):
+        old_filename = old_path.rsplit("/", 1)[-1]
+        old_file_path = AVATAR_DIR / old_filename
+        try:
+            if old_file_path.exists():
+                old_file_path.unlink()
+        except Exception:
+            # best-effort: don't crash if we can't delete
+            pass
 
-    return {"profile_image_url": row["profile_image_url"]}
-
+    return {"profile_image_url": updated["profile_image_url"]}
 
 @router.delete("/me/avatar")
 def delete_avatar(auth_ctx = Depends(get_current_user)):
@@ -245,5 +271,4 @@ def delete_avatar(auth_ctx = Depends(get_current_user)):
             pass
 
     return {"profile_image_url": None}
-
 
