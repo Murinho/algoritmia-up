@@ -6,18 +6,27 @@ import { useRouter } from "next/navigation";
 // ---- Mock: replace with real user data from your API/auth ----
 const mockUser = {
   fullName: "Adrián Muro",
-  email: "adrian.muro@up.edu.mx", // usually read-only
+  preferredName: "Adrián",
+  email: "adrian.muro@up.edu.mx",
   codeforces: "adrianmuro",
   program: "Ingeniería en IA",
+  // birthdate -> split in UI
   birthDay: "12",
   birthMonth: "08",
   birthYear: "2002",
+  // entry_year / entry_month
   uniMonth: "08",
   uniYear: "2021",
+  // grad_year / grad_month
   gradMonth: "05",
   gradYear: "2026",
+  // country (DB) <-> countryCode (UI)
   countryCode: "mx", // ISO 3166-1 alpha-2 lowercase (for flagcdn)
-  avatarUrl: "", // user uploaded photo URL (public) — using preview below
+  avatarUrl: "", // profile_image_url in DB
+
+  // Non-editable in DB; may be shown read-only later if you want
+  role: "user",
+  createdAt: "",
 };
 
 const MONTHS = [
@@ -101,6 +110,19 @@ export default function ProfilePage() {
     []
   );
 
+  // Helper to parse YYYY-MM-DD into (day, month, year)
+  const parseDateParts = (iso: string | null | undefined) => {
+    if (!iso) return null;
+    const parts = iso.split("-");
+    if (parts.length !== 3) return null;
+    const [year, month, day] = parts;
+    return {
+      year: year,
+      month: month.padStart(2, "0"),
+      day: day.padStart(2, "0"),
+    };
+  };
+
   // NEW: Block page if no active session, hydrate if authenticated
   useEffect(() => {
     let cancelled = false;
@@ -120,14 +142,51 @@ export default function ProfilePage() {
         }
         // Optional: hydrate from backend user
         const data = await res.json();
-        if (!cancelled && data?.user) {
+        const u = data?.user;
+        if (!cancelled && u) {
+          const birth = parseDateParts(u.birthdate);
           setForm((prev) => ({
             ...prev,
-            fullName: data.user.full_name ?? prev.fullName,
-            email: data.user.email ?? prev.email,
-            codeforces: data.user.codeforces_handle ?? prev.codeforces,
-            // keep other fields as-is until you add them server-side
+            fullName: u.full_name ?? prev.fullName,
+            preferredName: u.preferred_name ?? prev.preferredName,
+            email: u.email ?? prev.email,
+            codeforces: u.codeforces_handle ?? prev.codeforces,
+            program: u.degree_program ?? prev.program,
+            // birthdate
+            birthDay: birth?.day ?? prev.birthDay,
+            birthMonth: birth?.month ?? prev.birthMonth,
+            birthYear: birth?.year ?? prev.birthYear,
+            // entry_year / entry_month
+            uniYear:
+              (u.entry_year ? String(u.entry_year) : undefined) ?? prev.uniYear,
+            uniMonth:
+              (u.entry_month
+                ? String(u.entry_month).padStart(2, "0")
+                : undefined) ?? prev.uniMonth,
+            // grad_year / grad_month
+            gradYear:
+              (u.grad_year ? String(u.grad_year) : undefined) ?? prev.gradYear,
+            gradMonth:
+              (u.grad_month
+                ? String(u.grad_month).padStart(2, "0")
+                : undefined) ?? prev.gradMonth,
+            // country
+            countryCode:
+              // You can store ISO codes in DB or map from names as needed
+              u.country
+                ? u.country.length === 2
+                  ? u.country.toLowerCase()
+                  : prev.countryCode
+                : prev.countryCode,
+            // profile_image_url
+            avatarUrl: u.profile_image_url ?? prev.avatarUrl,
+            // non-editable but maybe useful later
+            role: u.role ?? prev.role,
+            createdAt: u.created_at ?? prev.createdAt,
           }));
+          if (u.profile_image_url) {
+            setAvatarPreview(u.profile_image_url);
+          }
         }
       } catch {
         if (!cancelled) {
@@ -149,7 +208,7 @@ export default function ProfilePage() {
     if (!f) return;
     const url = URL.createObjectURL(f);
     setAvatarPreview(url);
-    // Keep file in state if you want to upload it later
+    // TODO: keep file in state if you want to upload it later
   };
 
   const handleChange = (key: keyof typeof form, value: string) =>
@@ -158,7 +217,31 @@ export default function ProfilePage() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      // TODO: send `form` + photo file to your API
+      // TODO:
+      // Map the UI fields back to your API payload:
+      // full_name, preferred_name, email, codeforces_handle,
+      // birthdate (YYYY-MM-DD from birthYear/birthMonth/birthDay),
+      // degree_program, entry_year, entry_month,
+      // grad_year, grad_month, country, profile_image_url
+      //
+      // Example (pseudo):
+      /*
+      const payload = {
+        full_name: form.fullName,
+        preferred_name: form.preferredName,
+        email: form.email,
+        codeforces_handle: form.codeforces,
+        birthdate: `${form.birthYear}-${form.birthMonth}-${form.birthDay}`,
+        degree_program: form.program,
+        entry_year: Number(form.uniYear),
+        entry_month: Number(form.uniMonth),
+        grad_year: Number(form.gradYear),
+        grad_month: Number(form.gradMonth),
+        country: mapCountryCodeToName(form.countryCode), // or store code directly
+        profile_image_url: form.avatarUrl,
+      };
+      await fetch(`${API_BASE}/users/me`, { method: "PATCH", ... });
+      */
       await new Promise((r) => setTimeout(r, 800)); // demo
       alert("Perfil actualizado ✅");
     } catch (e) {
@@ -317,14 +400,20 @@ export default function ProfilePage() {
                   label="Nombre completo"
                   value={form.fullName}
                   onChange={(v) => handleChange("fullName", v)}
-                  placeholder="Tu nombre"
+                  placeholder="Tu nombre completo"
                 />
                 <Field
-                  label="Email (@up.edu.mx)"
+                  label="Nombre preferido"
+                  value={form.preferredName}
+                  onChange={(v) => handleChange("preferredName", v)}
+                  placeholder="Cómo quieres que te llamemos"
+                />
+
+                <Field
+                  label="Email institucional"
                   value={form.email}
                   onChange={(v) => handleChange("email", v)}
                   placeholder="nombre.apellido@up.edu.mx"
-                  readOnly
                 />
 
                 <Field
@@ -376,7 +465,7 @@ export default function ProfilePage() {
                   </div>
                 </div>
 
-                {/* Ingreso a la universidad */}
+                {/* Ingreso a la universidad -> entry_year / entry_month */}
                 <div className="sm:col-span-2">
                   <Label>Ingreso a la universidad</Label>
                   <div className="mt-1 grid grid-cols-2 gap-3">
@@ -399,7 +488,7 @@ export default function ProfilePage() {
                   </div>
                 </div>
 
-                {/* Graduación esperada */}
+                {/* Graduación esperada -> grad_year / grad_month */}
                 <div className="sm:col-span-2">
                   <Label>Graduación esperada</Label>
                   <div className="mt-1 grid grid-cols-2 gap-3">
@@ -422,7 +511,7 @@ export default function ProfilePage() {
                   </div>
                 </div>
 
-                {/* País de origen */}
+                {/* País de origen -> country */}
                 <div className="sm:col-span-2">
                   <Label>País de origen</Label>
                   <div className="mt-1 flex items-center gap-3">
@@ -465,7 +554,7 @@ export default function ProfilePage() {
 
         {/* Optional: tips / footer */}
         <p className="mx-auto mt-6 max-w-5xl text-center text-xs text-white/60">
-          Para cambiar tu contraseña o correo institucional, ve a{" "}
+          Para cambiar tu contraseña u otros ajustes avanzados, ve a{" "}
           <span className="text-white">Ajustes de cuenta</span>.
         </p>
       </section>
@@ -549,7 +638,11 @@ function CountryFlag({ code }: { code: string }) {
   // FlagCDN (SVG). Example: https://flagcdn.com/mx.svg
   return (
     <img
-      src={code ? `https://flagcdn.com/${code}.svg` : `https://flagcdn.com/placeholder.svg`}
+      src={
+        code
+          ? `https://flagcdn.com/${code}.svg`
+          : `https://flagcdn.com/placeholder.svg`
+      }
       alt="Bandera"
       width={28}
       height={20}
