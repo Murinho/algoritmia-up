@@ -1,10 +1,13 @@
+import string
+
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, EmailStr
 from passlib.hash import argon2
 
 from .. import db
+from .auth import get_current_user
 
 router = APIRouter(prefix="/auth-identities", tags=["AuthIdentities"])
 
@@ -78,6 +81,26 @@ class IdentityCreate(BaseModel):
     provider: str = "local"
     provider_uid: Optional[str] = None
 
+class PasswordChange(BaseModel):
+    current_password: str
+    new_password: str
+
+def _validate_password_strength(pw: str) -> None:
+    has_lower = any(c.islower() for c in pw)
+    has_upper = any(c.isupper() for c in pw)
+    has_digit = any(c.isdigit() for c in pw)
+    has_symbol = any(c in string.punctuation for c in pw)
+
+    if not (has_lower and has_upper and has_digit and has_symbol):
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "La nueva contraseña debe incluir al menos una letra minúscula, "
+                "una mayúscula, un dígito y un símbolo."
+            ),
+        )
+    
+
 @router.get("/")
 def list_auth_identities(user_id: Optional[int] = None):
     base = "SELECT * FROM auth_identities"
@@ -132,3 +155,26 @@ def create_auth_identity(payload: IdentityCreate):
         if "auth_identities_provider_uid_uq" in msg:
             raise HTTPException(status_code=409, detail="This provider identity already exists")
         raise
+
+@router.patch("/me/password")
+def change_my_password(
+    payload: PasswordChange,
+    auth_ctx = Depends(get_current_user),
+):
+    user = auth_ctx["user"]
+    user_id = user["id"]
+
+    # Basic backend-side validation
+    if len(payload.new_password) < 8:
+        raise HTTPException(
+            status_code=422,
+            detail="La nueva contraseña debe tener al menos 8 caracteres.",
+        )
+
+    # NEW: strength validation
+    _validate_password_strength(payload.new_password)
+
+    with db.connect() as conn:
+        ...
+        # (rest of your existing logic stays the same)
+
