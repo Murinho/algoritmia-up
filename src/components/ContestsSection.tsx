@@ -14,32 +14,9 @@ import {
   Plus,
 } from 'lucide-react';
 
-import ContestCreateDialog, {
-  type Contest as DialogContest,
-  type Platform as DialogPlatform,
-  type ContestFormat as DialogContestFormat,
-} from '@/components/ContestCreateDialog';
-
-import { API_BASE } from '@/lib/api'; // ✅ reuse API base
-
-// Keep local types in sync with the dialog to avoid TS union issues
-type Platform = DialogPlatform;
-type ContestFormat = DialogContestFormat;
-type UserRole = 'user' | 'coach' | 'admin';
-
-type Contest = {
-  id: string;
-  title: string;
-  platform: Platform;
-  url: string;
-  tags: string[];
-  difficulty: 1 | 2 | 3 | 4 | 5;
-  format: ContestFormat;
-  startsAt: string;
-  endsAt: string;
-  location: string;
-  season: string;
-};
+import ContestCreateDialog from '@/components/ContestCreateDialog';
+import { API_BASE } from '@/lib/api';
+import type { Contest, Platform, ContestFormat, UserRole } from '@/lib/types';
 
 const seedContests: Contest[] = [
   {
@@ -104,14 +81,10 @@ type SortState = { key: SortKey; dir: 'asc' | 'desc' };
 export default function ContestsSection() {
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<SortState>({ key: 'startsAt', dir: 'desc' });
-
   const [contests, setContests] = useState<Contest[]>(seedContests);
   const [openCreate, setOpenCreate] = useState(false);
-
-  // ⬇️ Role state
   const [userRole, setUserRole] = useState<UserRole | null>(null);
 
-  // ⬇️ Fetch current user role from /auth/me
   useEffect(() => {
     let cancelled = false;
 
@@ -181,7 +154,7 @@ export default function ContestsSection() {
 
   function toggleSort(key: SortKey) {
     setSort((prev) =>
-      prev.key === key ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }
+      prev.key === key ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' },
     );
   }
 
@@ -196,12 +169,18 @@ export default function ContestsSection() {
         aria-label={`Ordenar por ${label}`}
       >
         {label}
-        {active ? (sort.dir === 'asc' ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />) : null}
+        {active ? (
+          sort.dir === 'asc' ? (
+            <ChevronUp className="h-4 w-4" />
+          ) : (
+            <ChevronDown className="h-4 w-4" />
+          )
+        ) : null}
       </button>
     );
   }
 
-  function handleCreate(newContest: DialogContest) {
+  function handleCreate(newContest: Contest) {
     setContests((prev) => [{ ...newContest }, ...prev]);
   }
 
@@ -218,7 +197,6 @@ export default function ContestsSection() {
       />
 
       <div className="mx-auto max-w-7xl px-6 lg:px-8">
-        {/* Header */}
         <div className="mb-8">
           <h2
             id="contests-title"
@@ -231,11 +209,9 @@ export default function ContestsSection() {
           </p>
         </div>
 
-        {/* Card shell */}
         <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md">
           <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-[#C5133D] via-fuchsia-500 to-amber-400 opacity-90" />
 
-          {/* Toolbar */}
           <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="relative w-full sm:max-w-sm">
               <ListChecks className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/60" />
@@ -265,7 +241,6 @@ export default function ContestsSection() {
             </div>
           </div>
 
-          {/* Table */}
           <div className="overflow-x-auto">
             <table className="min-w-[1100px] w-full text-left text-sm text-white/90">
               <thead>
@@ -302,7 +277,6 @@ export default function ContestsSection() {
               <tbody>
                 {data.map((c) => (
                   <tr key={c.id} className="border-b border-white/10 hover:bg-white/5">
-                    {/* Title */}
                     <td className="px-4 py-3">
                       <span className="inline-flex items-center gap-2 font-medium text-white">
                         <Trophy className="h-4 w-4" />
@@ -310,14 +284,12 @@ export default function ContestsSection() {
                       </span>
                     </td>
 
-                    {/* Platform */}
                     <td className="px-4 py-3">
                       <span className="rounded-md border border-white/10 bg-black/30 px-2 py-1 text-xs">
                         {c.platform}
                       </span>
                     </td>
 
-                    {/* URL */}
                     <td className="px-4 py-3">
                       {c.url ? (
                         <Link
@@ -333,7 +305,6 @@ export default function ContestsSection() {
                       )}
                     </td>
 
-                    {/* Tags */}
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-1.5">
                         {c.tags.map((t) => (
@@ -347,19 +318,16 @@ export default function ContestsSection() {
                       </div>
                     </td>
 
-                    {/* Difficulty */}
                     <td className="px-4 py-3">
                       <Stars n={c.difficulty} />
                     </td>
 
-                    {/* Format */}
                     <td className="px-4 py-3">
                       <span className="rounded-md border border-white/10 bg-black/30 px-2 py-1 text-xs">
                         {c.format}
                       </span>
                     </td>
 
-                    {/* Start */}
                     <td className="px-4 py-3">
                       <time
                         className="inline-flex items-center gap-1 text-white/80"
@@ -378,7 +346,6 @@ export default function ContestsSection() {
                       </time>
                     </td>
 
-                    {/* End */}
                     <td className="px-4 py-3">
                       <time
                         className="inline-flex items-center gap-1 text-white/80"
@@ -397,7 +364,6 @@ export default function ContestsSection() {
                       </time>
                     </td>
 
-                    {/* Location */}
                     <td className="px-4 py-3">
                       <span className="inline-flex items-center gap-1 text-white/90">
                         <MapPin className="h-4 w-4" />
@@ -405,7 +371,6 @@ export default function ContestsSection() {
                       </span>
                     </td>
 
-                    {/* Season */}
                     <td className="px-4 py-3">
                       <span className="rounded-md border border-white/10 bg-black/30 px-2 py-1 text-xs">
                         {c.season}
@@ -431,7 +396,6 @@ export default function ContestsSection() {
         </p>
       </div>
 
-      {/* Create dialog (only opens if button is visible & clicked) */}
       <ContestCreateDialog
         open={openCreate}
         onClose={() => setOpenCreate(false)}

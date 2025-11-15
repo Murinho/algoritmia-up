@@ -53,3 +53,34 @@ export type SignUpResponse = {
   user: unknown;
   identity: unknown;
 };
+
+export type Platform =
+  | 'Codeforces'
+  | 'Vjudge'
+  | 'Kattis'
+  | 'SPOJ'
+  | 'Leetcode'
+  | 'Atcoder'
+  | 'CSES'
+  | 'HackerRank'
+  | 'Other';
+
+export type ContestFormat = 'ICPC' | 'IOI';
+
+export type Difficulty = 1 | 2 | 3 | 4 | 5;
+
+export type UserRole = 'user' | 'coach' | 'admin';
+
+export type Contest = {
+  id: string;
+  title: string;
+  platform: Platform;
+  url: string;
+  tags: string[];
+  difficulty: Difficulty;
+  format: ContestFormat;
+  startsAt: string; // ISO
+  endsAt: string;   // ISO
+  location: string;
+  season: string;   // e.g. "Fall 2025"
+};
