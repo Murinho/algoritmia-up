@@ -38,42 +38,6 @@ const TYPE_ICON: Record<ResourceType, JSX.Element> = {
   other: <BringToFrontIcon className="h-4 w-4" />,
 };
 
-const seedResources: Resource[] = [
-  {
-    id: 'r1',
-    type: 'notebook',
-    title: 'Heavy Light Decomposition Algorithm code c++',
-    url: 'https://github.com/Murinho/CP-Notebook/blob/main/Code/Graphs/heavy_light_decomposition.cpp',
-    tags: ['graphs', 'dp', 'team strategy'],
-    difficulty: 4,
-    addedBy: 'Adrián Muro',
-    createdAt: '2025-09-28T14:31:00Z',
-    notes: 'Template con lazy segtree y ejemplo de queries path.',
-  },
-  {
-    id: 'r2',
-    type: 'pdf',
-    title: 'Dinic + Min-Cost Max-Flow Cheatsheet',
-    url: 'https://cp-algorithms.com/graph/min_cost_flow.html',
-    tags: ['graphs', 'flows'],
-    difficulty: 5,
-    addedBy: 'Juan Marquina',
-    createdAt: '2025-09-18T10:02:00Z',
-    notes: 'Incluye casos borde y tips de performance.',
-  },
-  {
-    id: 'r3',
-    type: 'blog',
-    title: 'DP optimizations (Divide & Conquer, Knuth, CHT)',
-    url: 'https://codeforces.com/blog/entry/8219',
-    tags: ['dp', 'optimization'],
-    difficulty: 5,
-    addedBy: 'Erwin López',
-    createdAt: '2025-08-30T20:00:00Z',
-    notes: 'Resumen rápido con links a problemas clásicos.',
-  },
-];
-
 function Stars({ n }: { n: number }) {
   return (
     <div className="inline-flex" aria-label={`${n} de 5 estrellas`}>
@@ -99,8 +63,10 @@ export default function ResourcesSection() {
 
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<SortState>({ key: 'createdAt', dir: 'desc' });
-  const [resources, setResources] = useState<Resource[]>(seedResources);
+  const [resources, setResources] = useState<Resource[]>([]);
   const [openCreate, setOpenCreate] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -136,6 +102,54 @@ export default function ResourcesSection() {
       cancelled = true;
     };
   }, [API_BASE, router]);
+
+  // Load contests from backend
+    useEffect(() => {
+      let cancelled = false;
+  
+      async function loadResources() {
+        setLoading(true);
+        setLoadError(null);
+  
+        try {
+          const res = await fetch(`${API_BASE}/resources`, {
+            credentials: 'include', // cookie if needed (even though list is public)
+          });
+  
+          if (!res.ok) {
+            const text = await res.text().catch(() => '');
+            console.error('Failed to load resources:', res.status, text);
+            if (!cancelled) {
+              setLoadError('No se pudieron cargar los recursos.');
+              setResources([]);
+            }
+            return;
+          }
+  
+          const json = await res.json();
+          const items = (json.items ?? []) as Resource[];
+  
+          if (!cancelled) {
+            setResources(items);
+          }
+        } catch (err) {
+          console.error('Error fetching contests:', err);
+          if (!cancelled) {
+            setLoadError('Ocurrió un error al cargar los contests.');
+            setResources([]);
+          }
+        } finally {
+          if (!cancelled) {
+            setLoading(false);
+          }
+        }
+      }
+  
+      loadResources();
+      return () => {
+        cancelled = true;
+      };
+    }, []);
 
   const canCreate = userRole === 'coach' || userRole === 'admin';
 
@@ -271,6 +285,12 @@ export default function ResourcesSection() {
             </div>
           </div>
 
+          {loadError && (
+            <div className="px-4 pb-2 text-xs text-red-200">
+              {loadError}
+            </div>
+          )}
+
           <div className="overflow-x-auto">
             <table className="min-w-[900px] w-full text-left text-sm text-white/90">
               <thead>
@@ -366,10 +386,18 @@ export default function ResourcesSection() {
                   </tr>
                 ))}
 
-                {data.length === 0 && (
+                {!loading && data.length === 0 && (
                   <tr>
-                    <td colSpan={8} className="px-4 py-10 text-center text-white/70">
-                      No se encontraron recursos con “{query}”.
+                    <td colSpan={10} className="px-4 py-10 text-center text-white/70">
+                      No se encontraron contests con “{query}”.
+                    </td>
+                  </tr>
+                )}
+
+                {loading && (
+                  <tr>
+                    <td colSpan={10} className="px-4 py-10 text-center text-white/70">
+                      Cargando contests…
                     </td>
                   </tr>
                 )}
