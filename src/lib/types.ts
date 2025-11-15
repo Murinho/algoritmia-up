@@ -85,3 +85,28 @@ export type Contest = {
   season: string;   // e.g. "Fall 2025"
   notes?: string;
 };
+
+export type ResourceType =
+  | 'pdf'
+  | 'blog'
+  | 'notebook'
+  | 'link'
+  | 'sheet'
+  | 'slideshow'
+  | 'video'
+  | 'book'
+  | 'repo'
+  | 'article'
+  | 'other';
+
+export type Resource = {
+  id: string;
+  type: ResourceType;
+  title: string;
+  url: string;
+  tags: string[];
+  difficulty: Difficulty;
+  addedBy: string;
+  createdAt: string; // ISO string
+  notes?: string;
+};
