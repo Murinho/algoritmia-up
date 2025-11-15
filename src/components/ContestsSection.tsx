@@ -16,49 +16,7 @@ import {
 
 import ContestCreateDialog from '@/components/ContestCreateDialog';
 import { API_BASE } from '@/lib/api';
-import type { Contest, Platform, ContestFormat, UserRole } from '@/lib/types';
-
-const seedContests: Contest[] = [
-  {
-    id: 'c1',
-    title: 'ICPC Algoritmia UP Selection contest',
-    platform: 'Codeforces',
-    url: 'https://codeforces.com/contest/0000',
-    tags: ['graphs', 'dp', 'greedy'],
-    difficulty: 4,
-    format: 'ICPC',
-    startsAt: '2025-10-05T15:00:00Z',
-    endsAt: '2025-10-05T19:00:00Z',
-    location: 'UP Bonaterra – Lab A',
-    season: 'Fall 2025',
-  },
-  {
-    id: 'c2',
-    title: 'Training Round – Flow Focus',
-    platform: 'Vjudge',
-    url: 'https://vjudge.net/contest/123456',
-    tags: ['flows', 'implementation'],
-    difficulty: 5,
-    format: 'ICPC',
-    startsAt: '2025-09-21T16:00:00Z',
-    endsAt: '2025-09-21T20:00:00Z',
-    location: 'Remoto',
-    season: 'Fall 2025',
-  },
-  {
-    id: 'c3',
-    title: 'IOI Prep: DP Marathon',
-    platform: 'Kattis',
-    url: 'https://open.kattis.com/',
-    tags: ['dp', 'optimization'],
-    difficulty: 5,
-    format: 'IOI',
-    startsAt: '2025-08-30T14:00:00Z',
-    endsAt: '2025-08-30T22:00:00Z',
-    location: 'UP – Sala de Cómputo',
-    season: 'Summer 2025',
-  },
-];
+import type { Contest, UserRole } from '@/lib/types';
 
 function Stars({ n }: { n: number }) {
   return (
@@ -81,10 +39,13 @@ type SortState = { key: SortKey; dir: 'asc' | 'desc' };
 export default function ContestsSection() {
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<SortState>({ key: 'startsAt', dir: 'desc' });
-  const [contests, setContests] = useState<Contest[]>(seedContests);
+  const [contests, setContests] = useState<Contest[]>([]);
   const [openCreate, setOpenCreate] = useState(false);
   const [userRole, setUserRole] = useState<UserRole | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
+  // Load current user's role
   useEffect(() => {
     let cancelled = false;
 
@@ -110,6 +71,54 @@ export default function ContestsSection() {
     }
 
     loadRole();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Load contests from backend
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadContests() {
+      setLoading(true);
+      setLoadError(null);
+
+      try {
+        const res = await fetch(`${API_BASE}/contests`, {
+          credentials: 'include', // cookie if needed (even though list is public)
+        });
+
+        if (!res.ok) {
+          const text = await res.text().catch(() => '');
+          console.error('Failed to load contests:', res.status, text);
+          if (!cancelled) {
+            setLoadError('No se pudieron cargar los contests.');
+            setContests([]);
+          }
+          return;
+        }
+
+        const json = await res.json();
+        const items = (json.items ?? []) as Contest[];
+
+        if (!cancelled) {
+          setContests(items);
+        }
+      } catch (err) {
+        console.error('Error fetching contests:', err);
+        if (!cancelled) {
+          setLoadError('Ocurrió un error al cargar los contests.');
+          setContests([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadContests();
     return () => {
       cancelled = true;
     };
@@ -180,6 +189,7 @@ export default function ContestsSection() {
     );
   }
 
+  // When a contest is created from the dialog, just prepend it
   function handleCreate(newContest: Contest) {
     setContests((prev) => [{ ...newContest }, ...prev]);
   }
@@ -226,7 +236,9 @@ export default function ContestsSection() {
 
             <div className="flex items-center gap-3">
               <div className="text-xs text-white/80">
-                {data.length} resultado{data.length === 1 ? '' : 's'}
+                {loading
+                  ? 'Cargando…'
+                  : `${data.length} resultado${data.length === 1 ? '' : 's'}`}
               </div>
 
               {canCreate && (
@@ -240,6 +252,12 @@ export default function ContestsSection() {
               )}
             </div>
           </div>
+
+          {loadError && (
+            <div className="px-4 pb-2 text-xs text-red-200">
+              {loadError}
+            </div>
+          )}
 
           <div className="overflow-x-auto">
             <table className="min-w-[1100px] w-full text-left text-sm text-white/90">
@@ -275,114 +293,123 @@ export default function ContestsSection() {
               </thead>
 
               <tbody>
-                {data.map((c) => (
-                  <tr key={c.id} className="border-b border-white/10 hover:bg-white/5">
-                    <td className="px-4 py-3">
-                      <span className="inline-flex items-center gap-2 font-medium text-white">
-                        <Trophy className="h-4 w-4" />
-                        {c.title}
-                      </span>
-                    </td>
+                {!loading &&
+                  data.map((c) => (
+                    <tr key={c.id} className="border-b border-white/10 hover:bg-white/5">
+                      <td className="px-4 py-3">
+                        <span className="inline-flex items-center gap-2 font-medium text-white">
+                          <Trophy className="h-4 w-4" />
+                          {c.title}
+                        </span>
+                      </td>
 
-                    <td className="px-4 py-3">
-                      <span className="rounded-md border border-white/10 bg-black/30 px-2 py-1 text-xs">
-                        {c.platform}
-                      </span>
-                    </td>
+                      <td className="px-4 py-3">
+                        <span className="rounded-md border border-white/10 bg-black/30 px-2 py-1 text-xs">
+                          {c.platform}
+                        </span>
+                      </td>
 
-                    <td className="px-4 py-3">
-                      {c.url ? (
-                        <Link
-                          href={c.url}
-                          target="_blank"
-                          className="inline-flex items-center gap-1 text-white/90 underline decoration-white/30 underline-offset-2 hover:decoration-white"
-                        >
-                          Abrir
-                          <ExternalLink className="h-3.5 w-3.5" />
-                        </Link>
-                      ) : (
-                        <span className="text-white/50">—</span>
-                      )}
-                    </td>
-
-                    <td className="px-4 py-3">
-                      <div className="flex flex-wrap gap-1.5">
-                        {c.tags.map((t) => (
-                          <span
-                            key={t}
-                            className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-black/30 px-2 py-0.5 text-xs"
+                      <td className="px-4 py-3">
+                        {c.url ? (
+                          <Link
+                            href={c.url}
+                            target="_blank"
+                            className="inline-flex items-center gap-1 text-white/90 underline decoration-white/30 underline-offset-2 hover:decoration-white"
                           >
-                            {t}
+                            Abrir
+                            <ExternalLink className="h-3.5 w-3.5" />
+                          </Link>
+                        ) : (
+                          <span className="text-white/50">—</span>
+                        )}
+                      </td>
+
+                      <td className="px-4 py-3">
+                        <div className="flex flex-wrap gap-1.5">
+                          {c.tags.map((t) => (
+                            <span
+                              key={t}
+                              className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-black/30 px-2 py-0.5 text-xs"
+                            >
+                              {t}
+                            </span>
+                          ))}
+                        </div>
+                      </td>
+
+                      <td className="px-4 py-3">
+                        <Stars n={c.difficulty} />
+                      </td>
+
+                      <td className="px-4 py-3">
+                        <span className="rounded-md border border-white/10 bg-black/30 px-2 py-1 text-xs">
+                          {c.format}
+                        </span>
+                      </td>
+
+                      <td className="px-4 py-3">
+                        <time
+                          className="inline-flex items-center gap-1 text-white/80"
+                          dateTime={c.startsAt}
+                          title={new Date(c.startsAt).toLocaleString()}
+                        >
+                          <Calendar className="h-4 w-4" />
+                          {new Date(c.startsAt).toLocaleDateString()}
+                          <span className="inline-flex items-center gap-1">
+                            <Clock className="ml-1 h-4 w-4" />
+                            {new Date(c.startsAt).toLocaleTimeString([], {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
                           </span>
-                        ))}
-                      </div>
-                    </td>
+                        </time>
+                      </td>
 
-                    <td className="px-4 py-3">
-                      <Stars n={c.difficulty} />
-                    </td>
+                      <td className="px-4 py-3">
+                        <time
+                          className="inline-flex items-center gap-1 text-white/80"
+                          dateTime={c.endsAt}
+                          title={new Date(c.endsAt).toLocaleString()}
+                        >
+                          <Calendar className="h-4 w-4" />
+                          {new Date(c.endsAt).toLocaleDateString()}
+                          <span className="inline-flex items-center gap-1">
+                            <Clock className="ml-1 h-4 w-4" />
+                            {new Date(c.endsAt).toLocaleTimeString([], {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </span>
+                        </time>
+                      </td>
 
-                    <td className="px-4 py-3">
-                      <span className="rounded-md border border-white/10 bg-black/30 px-2 py-1 text-xs">
-                        {c.format}
-                      </span>
-                    </td>
-
-                    <td className="px-4 py-3">
-                      <time
-                        className="inline-flex items-center gap-1 text-white/80"
-                        dateTime={c.startsAt}
-                        title={new Date(c.startsAt).toLocaleString()}
-                      >
-                        <Calendar className="h-4 w-4" />
-                        {new Date(c.startsAt).toLocaleDateString()}
-                        <span className="inline-flex items-center gap-1">
-                          <Clock className="ml-1 h-4 w-4" />
-                          {new Date(c.startsAt).toLocaleTimeString([], {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
+                      <td className="px-4 py-3">
+                        <span className="inline-flex items-center gap-1 text-white/90">
+                          <MapPin className="h-4 w-4" />
+                          {c.location}
                         </span>
-                      </time>
-                    </td>
+                      </td>
 
-                    <td className="px-4 py-3">
-                      <time
-                        className="inline-flex items-center gap-1 text-white/80"
-                        dateTime={c.endsAt}
-                        title={new Date(c.endsAt).toLocaleString()}
-                      >
-                        <Calendar className="h-4 w-4" />
-                        {new Date(c.endsAt).toLocaleDateString()}
-                        <span className="inline-flex items-center gap-1">
-                          <Clock className="ml-1 h-4 w-4" />
-                          {new Date(c.endsAt).toLocaleTimeString([], {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
+                      <td className="px-4 py-3">
+                        <span className="rounded-md border border-white/10 bg-black/30 px-2 py-1 text-xs">
+                          {c.season}
                         </span>
-                      </time>
-                    </td>
+                      </td>
+                    </tr>
+                  ))}
 
-                    <td className="px-4 py-3">
-                      <span className="inline-flex items-center gap-1 text-white/90">
-                        <MapPin className="h-4 w-4" />
-                        {c.location}
-                      </span>
-                    </td>
-
-                    <td className="px-4 py-3">
-                      <span className="rounded-md border border-white/10 bg-black/30 px-2 py-1 text-xs">
-                        {c.season}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-
-                {data.length === 0 && (
+                {!loading && data.length === 0 && (
                   <tr>
                     <td colSpan={10} className="px-4 py-10 text-center text-white/70">
                       No se encontraron contests con “{query}”.
+                    </td>
+                  </tr>
+                )}
+
+                {loading && (
+                  <tr>
+                    <td colSpan={10} className="px-4 py-10 text-center text-white/70">
+                      Cargando contests…
                     </td>
                   </tr>
                 )}

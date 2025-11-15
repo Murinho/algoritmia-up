@@ -1,5 +1,5 @@
 from datetime import date
-from typing import Optional, Literal  # 👈 added Literal
+from typing import Optional, Literal
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, EmailStr, Field

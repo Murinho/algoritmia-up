@@ -1,8 +1,10 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { X, Calendar, Link as LinkIcon, Tag as TagIcon, Star, MapPin, Trophy } from 'lucide-react';
+import { X, Calendar, Link as LinkIcon, Tag as TagIcon, Star, MapPin, Trophy, StickyNote } from 'lucide-react';
 import type { Contest, Platform, ContestFormat, Difficulty } from '@/lib/types';
+import { createContest } from '@/lib/contests';
+import { HttpError } from '@/lib/api';
 
 type Props = {
   open: boolean;
@@ -178,6 +180,7 @@ export default function ContestCreateDialog({
   const [endsAtLocal, setEndsAtLocal] = useState('');
   const [location, setLocation] = useState('');
   const [season, setSeason] = useState(defaultSeason);
+  const [notes, setNotes] = useState('');
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -223,24 +226,29 @@ export default function ContestCreateDialog({
       setError(v);
       return;
     }
+
     setSubmitting(true);
+    setError(null);
+
     try {
-      const contest: Contest = {
-        id: genId(),
+      const created = await createContest({
         title: title.trim(),
         platform,
         url: url.trim(),
         tags,
         difficulty,
         format,
-        startsAt: localToISO(startsAtLocal),
-        endsAt: localToISO(endsAtLocal),
+        start_at: localToISO(startsAtLocal),
+        end_at: localToISO(endsAtLocal),
         location: location.trim(),
         season: season.trim(),
-      };
-      onCreate(contest);
+      });
+
+      // Notify parent with the *server* version (id, etc.)
+      onCreate(created);
       onClose();
 
+      // reset form
       setTitle('');
       setUrl('');
       setTags([]);
@@ -252,11 +260,25 @@ export default function ContestCreateDialog({
       setDifficulty(3);
       setPlatform('Codeforces');
       setFormat('ICPC');
-      setError(null);
+    } catch (err: unknown) {
+      if (err instanceof HttpError) {
+        if (err.status === 401) {
+          setError('Debes iniciar sesión para crear concursos.');
+        } else if (err.status === 403) {
+          setError('Solo coaches y admins pueden crear concursos.');
+        } else if (err.message) {
+          setError(String(err.message));
+        } else {
+          setError('Ocurrió un error al crear el concurso.');
+        }
+      } else {
+        setError('Ocurrió un error inesperado al crear el concurso.');
+      }
     } finally {
       setSubmitting(false);
     }
   }
+
 
   if (!open) return null;
 
@@ -431,7 +453,7 @@ export default function ContestCreateDialog({
                           addTagFromInput();
                         }
                       }}
-                      placeholder='Add a tag and press Enter (e.g., "graphs")'
+                      placeholder='Agrega un tag y presiona Enter (e.g., "grafos")'
                       className="w-full bg-transparent text-zinc-100 py-2 focus:outline-none"
                     />
                   </div>
@@ -440,9 +462,21 @@ export default function ContestCreateDialog({
                     onClick={addTagFromInput}
                     className="px-3 py-2 rounded-xl border border-white/10 text-zinc-100 bg-white/5 hover:bg-white/10 transition"
                   >
-                    Add
+                    Agregar
                   </button>
                 </div>
+              </div>
+            </Field>
+            <Field label="Notas (opcional)">
+              <div className="flex items-start gap-2 rounded-xl bg-zinc-800 border border-white/10 px-3">
+                <StickyNote size={16} className="text-zinc-400 mt-2" />
+                <textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Resumen rápido, advertencias, qué cubre, etc."
+                  rows={4}
+                  className="w-full bg-transparent text-zinc-100 py-2 focus:outline-none resize-y"
+                />
               </div>
             </Field>
 
@@ -452,14 +486,14 @@ export default function ContestCreateDialog({
                 onClick={onClose}
                 className="px-4 py-2 rounded-xl text-zinc-300 border border-white/10 hover:bg-white/5 transition"
               >
-                Cancel
+                Cancelar
               </button>
               <button
                 type="submit"
                 disabled={submitting}
                 className="px-4 py-2 rounded-xl text-white bg-[#C5133D] hover:brightness-110 disabled:opacity-60 transition"
               >
-                {submitting ? 'Creando…' : 'Create Concurso'}
+                {submitting ? 'Creando…' : 'Crear Concurso'}
               </button>
             </div>
           </form>

@@ -1,14 +1,13 @@
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
 from pydantic import BaseModel, AnyUrl, Field
 
 from .. import db
-
+from .auth import get_current_user
 
 router = APIRouter(prefix="/contests", tags=["Contests"])
-
 
 DDL = """
 CREATE TABLE IF NOT EXISTS contests (
@@ -35,13 +34,29 @@ def ensure_table(conn) -> None:
     conn.commit()
 
 
+def row_to_contest(row: dict) -> dict:
+    """Normalize DB row → JSON shape expected by the frontend."""
+    return {
+        "id": row["id"],
+        "title": row["title"],
+        "platform": row["platform"],
+        "url": row["url"],
+        "tags": row["tags"] or [],
+        "difficulty": row["difficulty"] or 3,  # default if NULL
+        "format": row["format"],
+        "startsAt": row["start_at"].isoformat(),
+        "endsAt": row["end_at"].isoformat(),
+        "location": row["location"] or "",
+        "season": row["season"] or "",
+        "notes": row["notes"] or ""
+    }
+
 class ContestCreate(BaseModel):
     title: str
     platform: str
     url: AnyUrl
     tags: Optional[list[str]] = None
     difficulty: Optional[int] = Field(default=None, ge=1, le=5)
-    added_by: Optional[int] = None
     format: str
     start_at: datetime
     end_at: datetime
@@ -65,10 +80,15 @@ class ContestUpdate(BaseModel):
 
 
 @router.get("")
-def list_contests(platform: Optional[str] = None, season: Optional[str] = None, upcoming_only: bool = Query(False)):
+def list_contests(
+    platform: Optional[str] = None,
+    season: Optional[str] = None,
+    upcoming_only: bool = Query(False),
+):
     base = "SELECT * FROM contests"
     clauses = []
     params: list = []
+
     if platform:
         clauses.append("platform=%s")
         params.append(platform)
@@ -77,12 +97,15 @@ def list_contests(platform: Optional[str] = None, season: Optional[str] = None, 
         params.append(season)
     if upcoming_only:
         clauses.append("end_at >= NOW()")
+
     if clauses:
         base += " WHERE " + " AND ".join(clauses)
+
     base += " ORDER BY start_at DESC LIMIT 200"
+
     with db.connect() as conn:
         rows = db.fetchall(conn, base, params)
-    return {"items": rows}
+    return {"items": [row_to_contest(r) for r in rows]}
 
 
 @router.get("/{contest_id}")
@@ -91,16 +114,33 @@ def get_contest(contest_id: int):
         row = db.fetchone(conn, "SELECT * FROM contests WHERE id=%s", [contest_id])
     if not row:
         raise HTTPException(status_code=404, detail="Contest not found")
-    return row
+    return row_to_contest(row)
 
 
 @router.post("")
-def create_contest(payload: ContestCreate):
+def create_contest(payload: ContestCreate, auth=Depends(get_current_user)):
+    """
+    Only 'coach' or 'admin' can create contests.
+    `auth` looks like: {"session": ..., "user": ...}
+    """
+    user = auth["user"]
+    role = user.get("role")
+    user_id = user["id"]
+
+    if role not in ("coach", "admin"):
+        raise HTTPException(status_code=403, detail="Only coaches/admins can create contests")
+
+    if payload.start_at >= payload.end_at:
+        raise HTTPException(status_code=400, detail="start_at must be before end_at")
+
     with db.connect() as conn:
         row = db.fetchone(
             conn,
             """
-            INSERT INTO contests(title, platform, url, tags, difficulty, added_by, format, start_at, end_at, location, season, notes)
+            INSERT INTO contests(
+                title, platform, url, tags, difficulty,
+                added_by, format, start_at, end_at, location, season, notes
+            )
             VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
             RETURNING *
             """,
@@ -110,7 +150,7 @@ def create_contest(payload: ContestCreate):
                 str(payload.url),
                 payload.tags,
                 payload.difficulty,
-                payload.added_by,
+                user_id,
                 payload.format,
                 payload.start_at,
                 payload.end_at,
@@ -119,27 +159,48 @@ def create_contest(payload: ContestCreate):
                 payload.notes,
             ],
         )
-    return row
+    return row_to_contest(row)
 
 
 @router.patch("/{contest_id}")
-def update_contest(contest_id: int, payload: ContestUpdate):
+def update_contest(contest_id: int, payload: ContestUpdate, auth=Depends(get_current_user)):
+    user = auth["user"]
+    role = user.get("role")
+
+    if role not in ("coach", "admin"):
+        raise HTTPException(status_code=403, detail="Only coaches/admins can update contests")
+
     data = payload.model_dump(exclude_unset=True)
     if not data:
         raise HTTPException(status_code=400, detail="No fields to update")
+
+    # optional: validate start_at < end_at if both present
+    if "start_at" in data and "end_at" in data:
+        if data["start_at"] >= data["end_at"]:
+            raise HTTPException(status_code=400, detail="start_at must be before end_at")
+
     cols = ", ".join(f"{k}=%s" for k in data.keys())
     params = list(data.values()) + [contest_id]
+
     with db.connect() as conn:
         row = db.fetchone(conn, f"UPDATE contests SET {cols} WHERE id=%s RETURNING *", params)
+
     if not row:
         raise HTTPException(status_code=404, detail="Contest not found")
-    return row
+    return row_to_contest(row)
 
 
 @router.delete("/{contest_id}")
-def delete_contest(contest_id: int):
+def delete_contest(contest_id: int, auth=Depends(get_current_user)):
+    user = auth["user"]
+    role = user.get("role")
+
+    if role not in ("coach", "admin"):
+        raise HTTPException(status_code=403, detail="Only coaches/admins can delete contests")
+
     with db.connect() as conn:
         count = db.execute(conn, "DELETE FROM contests WHERE id=%s", [contest_id])
+
     if count == 0:
         raise HTTPException(status_code=404, detail="Contest not found")
     return {"deleted": True}
