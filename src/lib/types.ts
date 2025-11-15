@@ -83,4 +83,5 @@ export type Contest = {
   endsAt: string;   // ISO
   location: string;
   season: string;   // e.g. "Fall 2025"
+  notes?: string;
 };

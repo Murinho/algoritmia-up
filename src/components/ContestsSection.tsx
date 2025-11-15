@@ -189,9 +189,8 @@ export default function ContestsSection() {
     );
   }
 
-  // When a contest is created from the dialog, just prepend it
-  function handleCreate(newContest: Contest) {
-    setContests((prev) => [{ ...newContest }, ...prev]);
+  function handleCreate() {
+    setOpenCreate(false);
   }
 
   const defaultSeason = 'Fall 2025';
@@ -289,6 +288,7 @@ export default function ContestsSection() {
                   <th className="px-4 py-3 w-36">
                     <SortButton k="season" label="Temporada" />
                   </th>
+                  <th className="px-4 py-3 min-w-[220px]">Notas</th>
                 </tr>
               </thead>
 
@@ -393,6 +393,12 @@ export default function ContestsSection() {
                       <td className="px-4 py-3">
                         <span className="rounded-md border border-white/10 bg-black/30 px-2 py-1 text-xs">
                           {c.season}
+                        </span>
+                      </td>
+
+                      <td className="px-4 py-3">
+                        <span className="text-white/80">
+                          {c.notes ? c.notes : <span className="text-white/50">—</span>}
                         </span>
                       </td>
                     </tr>

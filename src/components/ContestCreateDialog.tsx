@@ -242,6 +242,7 @@ export default function ContestCreateDialog({
         end_at: localToISO(endsAtLocal),
         location: location.trim(),
         season: season.trim(),
+        notes
       });
 
       // Notify parent with the *server* version (id, etc.)

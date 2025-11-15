@@ -48,7 +48,7 @@ def row_to_contest(row: dict) -> dict:
         "endsAt": row["end_at"].isoformat(),
         "location": row["location"] or "",
         "season": row["season"] or "",
-        "notes": row["notes"] or ""
+        "notes": row["notes"] or "",
     }
 
 class ContestCreate(BaseModel):

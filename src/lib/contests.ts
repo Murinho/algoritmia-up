@@ -12,6 +12,7 @@ export type CreateContestPayload = {
   end_at: string;   // ISO string
   location: string;
   season: string;
+  notes: string;
 };
 
 type ApiContestRow = {
