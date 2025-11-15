@@ -1,4 +1,4 @@
-import secrets, hashlib
+import secrets, hashlib, string
 
 from datetime import date, datetime, timedelta
 from typing import Optional
@@ -78,6 +78,33 @@ class Login(BaseModel):
     ttl_minutes: int = 60 * 24
 
 
+def _validate_password_strength(pw: str) -> None:
+    """
+    Enforces:
+    - at least 8 chars
+    - at least 1 lowercase, 1 uppercase, 1 digit, 1 symbol
+    """
+    if len(pw) < 8:
+        raise HTTPException(
+            status_code=422,
+            detail="La contraseña debe tener al menos 8 caracteres.",
+        )
+
+    has_lower = any(c.islower() for c in pw)
+    has_upper = any(c.isupper() for c in pw)
+    has_digit = any(c.isdigit() for c in pw)
+    has_symbol = any(c in string.punctuation for c in pw)
+
+    if not (has_lower, has_upper, has_digit, has_symbol) == (True, True, True, True):
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "La contraseña debe incluir al menos una letra minúscula, "
+                "una mayúscula, un dígito y un símbolo."
+            ),
+        )
+
+
 def get_current_user(request: Request):
     # read cookie
     raw = request.cookies.get(SESSION_COOKIE_NAME)
@@ -134,6 +161,38 @@ def signup(payload: SignUp):
     NOTE: This DOES NOT log the user in or create a session.
     Frontend should redirect to the login page on success.
     """
+    # --- Server-side validations ---
+
+    # 1) email domain
+    email_str = str(payload.email).lower()
+    if not email_str.endswith("@up.edu.mx"):
+        raise HTTPException(
+            status_code=422,
+            detail="El email debe pertenecer al dominio @up.edu.mx.",
+        )
+
+    # 2) birthdate before today
+    if payload.birthdate >= date.today():
+        raise HTTPException(
+            status_code=422,
+            detail="La fecha de nacimiento debe ser anterior a hoy.",
+        )
+
+    # 3) entry date < graduation date (strict)
+    if (payload.entry_year, payload.entry_month) >= (
+        payload.grad_year,
+        payload.grad_month,
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail="La fecha de ingreso debe ser anterior a la fecha de graduación.",
+        )
+
+    # 4) password strength
+    _validate_password_strength(payload.password)
+
+    # --- Existing logic ---
+
     pwd_hash = argon2.hash(payload.password)
 
     with db.connect() as conn:
@@ -229,7 +288,6 @@ def signup(payload: SignUp):
             raise HTTPException(status_code=500, detail="Internal error during signup")
 
     return {"user": user, "identity": identity}
-
 
 
 @router.post("/login")

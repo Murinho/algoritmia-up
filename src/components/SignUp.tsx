@@ -22,14 +22,12 @@ const MONTHS = [
 
 const DEGREE_PROGRAMS = [
   "Ingeniería en Inteligencia Artificial",
-  "Ingeniería en Tecnologías de la Información",
-  "Ingeniería en Sistemas y Gráficas Computacionales",
-  "Ingeniería Industrial",
   "Ingeniería Mecatrónica",
+  "Ingeniería Industrial e Innovación de Negocios",
+  "Ingeniería Bioelectrónica",
   "Ingeniería en Innovación y Diseño",
-  "Matemáticas Aplicadas",
-  "Licenciatura en Administración y Finanzas",
-  "Otro",
+  "Ingeniería en Energía y Sistemas Inteligentes",
+  "Otra",
 ];
 
 const COUNTRY_OPTIONS = [
@@ -675,7 +673,7 @@ export default function SignUp() {
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div>
                 <label htmlFor="codeforces" className="text-white">
-                  Codeforces handle
+                  Codeforces handle 
                 </label>
                 <input
                   id="codeforces"
@@ -684,6 +682,9 @@ export default function SignUp() {
                   placeholder="e.g. adrianmuro"
                   className="mt-2 w-full rounded-md border border-white/10 bg-white/10 px-3 py-2 text-white placeholder:text-white/50 focus:outline-none focus:ring-2 focus:ring-[#C5133D]/60"
                 />
+                <p className="mt-1 text-[11px] text-white/70">
+                  Si no tienes una cuenta crea una aquí: https://codeforces.com/register
+                </p>
                 {errors.codeforces && (
                   <p className="mt-1 text-xs text-red-300">{errors.codeforces}</p>
                 )}
@@ -729,7 +730,7 @@ export default function SignUp() {
                   className="mt-2 w-full rounded-md border border-white/10 bg-white/10 px-3 py-2 text-white placeholder:text-white/50 focus:outline-none focus:ring-2 focus:ring-[#C5133D]/60"
                 />
                 <p className="mt-1 text-[11px] text-white/70">
-                  8–20 caracteres, incluye al menos 1 mayúscula, 1 símbolo y 1
+                  8–20 caracteres, incluye al menos 1 mayúscula, 1 minúscula, 1 símbolo y 1
                   dígito.
                 </p>
                 {errors.password && (

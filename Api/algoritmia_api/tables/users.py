@@ -73,6 +73,27 @@ class UserUpdate(BaseModel):
     profile_image_url: Optional[str] = None
     role: Optional[Literal["user", "coach", "admin"]] = None
 
+def _validate_entry_before_grad(
+    entry_year: int,
+    entry_month: int,
+    grad_year: int,
+    grad_month: int,
+) -> None:
+    # Compare (year, month) tuples
+    if (entry_year, entry_month) >= (grad_year, grad_month):
+        raise HTTPException(
+            status_code=422,
+            detail="La fecha de ingreso debe ser anterior a la fecha de graduación.",
+        )
+
+
+def _validate_birthdate_before_today(birthdate: date) -> None:
+    if birthdate >= date.today():
+        raise HTTPException(
+            status_code=422,
+            detail="La fecha de nacimiento debe ser anterior a hoy.",
+        )
+
 
 @router.get("")
 def list_users(q: Optional[str] = Query(None, description="Search by name or email")):
@@ -108,6 +129,17 @@ def get_user_by_email(email: EmailStr):
 
 @router.post("")
 def create_user(payload: UserCreate):
+    # birthdate check
+    _validate_birthdate_before_today(payload.birthdate)
+
+    # entry/grad check
+    _validate_entry_before_grad(
+        payload.entry_year,
+        payload.entry_month,
+        payload.grad_year,
+        payload.grad_month,
+    )
+
     with db.connect() as conn:
         sql = (
             "INSERT INTO users (full_name, preferred_name, email, codeforces_handle, birthdate, degree_program, "
@@ -136,6 +168,63 @@ def create_user(payload: UserCreate):
     return row
 
 
+@router.patch("/me")
+def update_me(
+    payload: UserUpdate,
+    auth_ctx = Depends(get_current_user),
+):
+    """
+    Update the currently authenticated user's profile fields.
+    Email and role are NOT editable from here.
+    Avatar is handled via /users/me/avatar.
+    """
+    user = auth_ctx["user"]
+    user_id = user["id"]
+
+    fields = payload.model_dump(exclude_unset=True)
+    if not fields:
+        raise HTTPException(status_code=400, detail="No fields to update")
+
+    # Never allow role/profile_image_url changes from here
+    fields.pop("role", None)
+    fields.pop("profile_image_url", None)
+
+    # NEW: birthdate validation if present
+    if "birthdate" in fields and fields["birthdate"] is not None:
+        _validate_birthdate_before_today(fields["birthdate"])
+
+    # Normalize country if present
+    if "country" in fields and fields["country"] and len(fields["country"]) == 2:
+        fields["country"] = fields["country"].lower()
+
+    effective_entry_year = fields.get("entry_year", user["entry_year"])
+    effective_entry_month = fields.get("entry_month", user["entry_month"])
+    effective_grad_year = fields.get("grad_year", user["grad_year"])
+    effective_grad_month = fields.get("grad_month", user["grad_month"])
+
+    _validate_entry_before_grad(
+        effective_entry_year,
+        effective_entry_month,
+        effective_grad_year,
+        effective_grad_month,
+    )
+
+    cols = ", ".join(f"{k}=%s" for k in fields.keys())
+    params = list(fields.values()) + [user_id]
+
+    with db.connect() as conn:
+        row = db.fetchone(
+            conn,
+            f"UPDATE users SET {cols} WHERE id=%s RETURNING *",
+            params,
+        )
+
+    if not row:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    return row
+
+""""
 @router.patch("/{user_id}")
 def update_user(user_id: int, payload: UserUpdate):
     fields = payload.model_dump(exclude_unset=True)
@@ -148,6 +237,7 @@ def update_user(user_id: int, payload: UserUpdate):
     if not row:
         raise HTTPException(status_code=404, detail="User not found")
     return row
+"""
 
 
 @router.delete("/{user_id}")
@@ -271,4 +361,3 @@ def delete_avatar(auth_ctx = Depends(get_current_user)):
             pass
 
     return {"profile_image_url": None}
-

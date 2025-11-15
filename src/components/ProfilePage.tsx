@@ -264,7 +264,6 @@ export default function ProfilePage() {
   const [passwordForm, setPasswordForm] = useState({
     current: "",
     next: "",
-    confirm: "",
   });
 
   // NEW: auth guard state
@@ -441,16 +440,11 @@ export default function ProfilePage() {
 
     try {
       const wantsPasswordChange =
-        passwordForm.current || passwordForm.next || passwordForm.confirm;
+        passwordForm.current || passwordForm.next;
 
       if (wantsPasswordChange) {
-        if (!passwordForm.current || !passwordForm.next || !passwordForm.confirm) {
+        if (!passwordForm.current || !passwordForm.next) {
           alert("Para cambiar la contraseña, llena todos los campos de contraseña.");
-          setSaving(false);
-          return;
-        }
-        if (passwordForm.next !== passwordForm.confirm) {
-          alert("La nueva contraseña y la confirmación no coinciden.");
           setSaving(false);
           return;
         }
@@ -459,18 +453,92 @@ export default function ProfilePage() {
           setSaving(false);
           return;
         }
+
+        const strongPwd = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
+        if (!strongPwd.test(passwordForm.next)) {
+          alert(
+            "La nueva contraseña debe incluir al menos una minúscula, una mayúscula, un dígito y un símbolo."
+          );
+          setSaving(false);
+          return;
+        }
       }
 
-      // 1) PATCH /users/me (perfil)
-      // 2) PATCH /auth-identities/me/password si wantsPasswordChange
-      // (dejé los fetch comentados en la versión anterior)
+      const entryYear = Number(form.uniYear);
+      const entryMonth = Number(form.uniMonth);
+      const gradYear = Number(form.gradYear);
+      const gradMonth = Number(form.gradMonth);
 
-      await new Promise((r) => setTimeout(r, 800)); // demo
+      if (
+        gradYear < entryYear ||
+        (gradYear === entryYear && gradMonth <= entryMonth)
+      ) {
+        alert(
+          "La fecha de graduación debe ser posterior a la fecha de ingreso a la universidad."
+        );
+        setSaving(false);
+        return;
+      }
+
+      // --- 1) Build payload for /users/me ---
+      const birthdate = `${form.birthYear}-${form.birthMonth}-${form.birthDay}`;
+
+      const profilePayload = {
+        full_name: form.fullName.trim(),
+        preferred_name: form.preferredName.trim(),
+        codeforces_handle: form.codeforces.trim(),
+        degree_program: form.program,
+        birthdate,
+        entry_year: Number(form.uniYear),
+        entry_month: Number(form.uniMonth),
+        grad_year: Number(form.gradYear),
+        grad_month: Number(form.gradMonth),
+        country: form.countryCode.toLowerCase(), // DB stores 2-letter code
+        // profile_image_url is updated via /users/me/avatar, so we don't send it here
+      };
+
+      const resProfile = await fetch(`${API_BASE}/users/me`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(profilePayload),
+      });
+
+      if (!resProfile.ok) {
+        const text = await resProfile.text();
+        console.error("Profile update error:", text);
+        alert("No se pudo actualizar el perfil. Intenta de nuevo.");
+        setSaving(false);
+        return;
+      }
+
+      // --- 2) If user requested password change, call password endpoint ---
+      if (wantsPasswordChange) {
+        const resPwd = await fetch(`${API_BASE}/auth-identities/me/password`, {
+          method: "PATCH",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            current_password: passwordForm.current,
+            new_password: passwordForm.next,
+          }),
+        });
+
+        if (!resPwd.ok) {
+          const text = await resPwd.text();
+          console.error("Password change error:", text);
+          alert(
+            "El perfil se actualizó, pero no se pudo cambiar la contraseña. Verifica tu contraseña actual."
+          );
+          setSaving(false);
+          return;
+        }
+
+        // Password changed successfully -> clear password fields
+        setPasswordForm({ current: "", next: ""});
+      }
 
       alert("Perfil actualizado ✅");
-      if (wantsPasswordChange) {
-        setPasswordForm({ current: "", next: "", confirm: "" });
-      }
     } catch (e) {
       console.error(e);
       alert("No se pudo guardar. Intenta de nuevo.");
@@ -478,6 +546,7 @@ export default function ProfilePage() {
       setSaving(false);
     }
   };
+
 
   const handleLogout = async () => {
     try {
