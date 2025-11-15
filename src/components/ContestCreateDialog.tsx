@@ -1,35 +1,10 @@
-// app/components/ContestCreateDialog.tsx
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { X, Calendar, Link as LinkIcon, Tag as TagIcon, Star, MapPin, Trophy } from 'lucide-react';
-
-export type Platform =
-  | 'Codeforces'
-  | 'Vjudge'
-  | 'Kattis'
-  | 'SPOJ'
-  | 'Leetcode'
-  | 'Atcoder'
-  | 'CSES'
-  | 'HackerRank'
-  | 'Other';
-
-export type ContestFormat = 'ICPC' | 'IOI';
-
-export type Contest = {
-  id: string;
-  title: string;
-  platform: Platform;
-  url: string;
-  tags: string[];
-  difficulty: 1 | 2 | 3 | 4 | 5;
-  format: ContestFormat;
-  startsAt: string; // ISO
-  endsAt: string;   // ISO
-  location: string;
-  season: string;   // e.g. "Fall 2025"
-};
+import { X, Calendar, Link as LinkIcon, Tag as TagIcon, Star, MapPin, Trophy, StickyNote } from 'lucide-react';
+import type { Contest, Platform, ContestFormat, Difficulty } from '@/lib/types';
+import { createContest } from '@/lib/contests';
+import { HttpError } from '@/lib/api';
 
 type Props = {
   open: boolean;
@@ -52,9 +27,7 @@ const PLATFORMS: Platform[] = [
 
 const FORMATS: ContestFormat[] = ['ICPC', 'IOI'];
 
-// ——— Helpers ———
 function localToISO(local: string) {
-  // local should be "YYYY-MM-DDTHH:mm"
   if (!local) return '';
   const dt = new Date(local);
   if (Number.isNaN(dt.getTime())) return '';
@@ -65,7 +38,6 @@ function genId() {
   return Math.random().toString(36).slice(2, 10);
 }
 
-// ——— Field Shell ———
 function Field({
   label,
   hint,
@@ -86,8 +58,7 @@ function Field({
   );
 }
 
-// ——— Stars Input (with click-to-describe) ———
-const DIFFICULTY_DESCRIPTIONS: Record<1 | 2 | 3 | 4 | 5, string> = {
+const DIFFICULTY_DESCRIPTIONS: Record<Difficulty, string> = {
   1: 'Intro: friendly on-ramp for new members; basics, easy implementation.',
   2: 'Easy–Medium: light CF Div. 4 vibe; straightforward ideas with small twists.',
   3: 'Medium: solid training (e.g., GPMX); classic topics, some multi-step reasoning.',
@@ -99,21 +70,19 @@ function Stars({
   value,
   onChange,
 }: {
-  value: 1 | 2 | 3 | 4 | 5;
-  onChange: (v: 1 | 2 | 3 | 4 | 5) => void;
+  value: Difficulty;
+  onChange: (v: Difficulty) => void;
 }) {
   const [hintOpen, setHintOpen] = useState(false);
   const hideRef = useRef<number | null>(null);
 
-  function handleClick(v: 1 | 2 | 3 | 4 | 5) {
+  function handleClick(v: Difficulty) {
     onChange(v);
-    // show the hint briefly
     setHintOpen(true);
     if (hideRef.current) window.clearTimeout(hideRef.current);
     hideRef.current = window.setTimeout(() => setHintOpen(false), 3000);
   }
 
-  // cleanup on unmount
   useEffect(() => {
     return () => {
       if (hideRef.current) window.clearTimeout(hideRef.current);
@@ -131,7 +100,7 @@ function Stars({
             aria-checked={i === value}
             className="p-1 rounded hover:bg-white/5 transition outline-none focus:ring-2 focus:ring-[#C5133D]/60"
             aria-label={`${i} ${i === 1 ? 'star' : 'stars'}`}
-            onClick={() => handleClick(i as 1 | 2 | 3 | 4 | 5)}
+            onClick={() => handleClick(i as Difficulty)}
           >
             <Star
               size={18}
@@ -141,15 +110,17 @@ function Stars({
         ))}
       </div>
 
-      {/* Floating hint */}
       <div
-        className={`absolute left-1/2 top-[115%] -translate-x-1/2 transition-all duration-200
-        ${hintOpen ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-1 pointer-events-none'}`}
+        className={`absolute left-1/2 top-[115%] -translate-x-1/2 transition-all duration-200 ${
+          hintOpen ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-1 pointer-events-none'
+        }`}
         aria-live="polite"
       >
         <div className="max-w-[22rem] rounded-lg border border-white/10 bg-zinc-900/95 px-3 py-2 shadow-lg">
           <p className="text-xs text-zinc-200">
-            <span className="font-medium">{value} {value === 1 ? 'Star' : 'Stars'}:</span>{' '}
+            <span className="font-medium">
+              {value} {value === 1 ? 'Star' : 'Stars'}:
+            </span>{' '}
             {DIFFICULTY_DESCRIPTIONS[value]}
           </p>
         </div>
@@ -158,8 +129,6 @@ function Stars({
   );
 }
 
-
-// ——— Tag Pills ———
 function TagPills({
   tags,
   onRemove,
@@ -192,7 +161,6 @@ function TagPills({
   );
 }
 
-// ——— Main Component ———
 export default function ContestCreateDialog({
   open,
   onClose,
@@ -206,17 +174,17 @@ export default function ContestCreateDialog({
   const [url, setUrl] = useState('');
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
-  const [difficulty, setDifficulty] = useState<1 | 2 | 3 | 4 | 5>(3);
+  const [difficulty, setDifficulty] = useState<Difficulty>(3);
   const [format, setFormat] = useState<ContestFormat>('ICPC');
   const [startsAtLocal, setStartsAtLocal] = useState('');
   const [endsAtLocal, setEndsAtLocal] = useState('');
   const [location, setLocation] = useState('');
   const [season, setSeason] = useState(defaultSeason);
+  const [notes, setNotes] = useState('');
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // reset when open
   useEffect(() => {
     if (open) {
       setTimeout(() => initialFocusRef.current?.focus(), 20);
@@ -258,24 +226,30 @@ export default function ContestCreateDialog({
       setError(v);
       return;
     }
+
     setSubmitting(true);
+    setError(null);
+
     try {
-      const contest: Contest = {
-        id: genId(),
+      const created = await createContest({
         title: title.trim(),
         platform,
         url: url.trim(),
         tags,
         difficulty,
         format,
-        startsAt: localToISO(startsAtLocal),
-        endsAt: localToISO(endsAtLocal),
+        start_at: localToISO(startsAtLocal),
+        end_at: localToISO(endsAtLocal),
         location: location.trim(),
         season: season.trim(),
-      };
-      onCreate(contest);
+        notes
+      });
+
+      // Notify parent with the *server* version (id, etc.)
+      onCreate(created);
       onClose();
-      // reset minimal fields for next open
+
+      // reset form
       setTitle('');
       setUrl('');
       setTags([]);
@@ -287,11 +261,25 @@ export default function ContestCreateDialog({
       setDifficulty(3);
       setPlatform('Codeforces');
       setFormat('ICPC');
-      setError(null);
+    } catch (err: unknown) {
+      if (err instanceof HttpError) {
+        if (err.status === 401) {
+          setError('Debes iniciar sesión para crear concursos.');
+        } else if (err.status === 403) {
+          setError('Solo coaches y admins pueden crear concursos.');
+        } else if (err.message) {
+          setError(String(err.message));
+        } else {
+          setError('Ocurrió un error al crear el concurso.');
+        }
+      } else {
+        setError('Ocurrió un error inesperado al crear el concurso.');
+      }
     } finally {
       setSubmitting(false);
     }
   }
+
 
   if (!open) return null;
 
@@ -301,18 +289,11 @@ export default function ContestCreateDialog({
       role="dialog"
       aria-modal="true"
     >
-      {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/70 backdrop-blur-sm"
-        onClick={onClose}
-      />
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
 
-      {/* Modal */}
       <div className="relative w-[min(680px,92vw)] max-h-[88vh] overflow-hidden rounded-2xl border border-white/10 shadow-2xl">
-        {/* Top Accent */}
         <div className="h-1 w-full bg-gradient-to-r from-[#C5133D] via-pink-500/60 to-transparent" />
         <div className="relative bg-zinc-900">
-          {/* Header */}
           <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
             <div className="flex items-center gap-2">
               <Trophy className="text-zinc-200" size={18} />
@@ -327,8 +308,10 @@ export default function ContestCreateDialog({
             </button>
           </div>
 
-          {/* Body */}
-          <form onSubmit={handleSubmit} className="px-5 py-5 overflow-y-auto max-h-[76vh] space-y-5">
+          <form
+            onSubmit={handleSubmit}
+            className="px-5 py-5 overflow-y-auto max-h-[76vh] space-y-5"
+          >
             {error && (
               <div className="text-sm text-red-300 bg-red-500/10 border border-red-500/30 px-3 py-2 rounded">
                 {error}
@@ -453,9 +436,8 @@ export default function ContestCreateDialog({
             </div>
 
             <Field label="Dificultad">
-                <Stars value={difficulty} onChange={setDifficulty} />
+              <Stars value={difficulty} onChange={setDifficulty} />
             </Field>
-
 
             <Field label="Tags">
               <div className="space-y-2">
@@ -472,7 +454,7 @@ export default function ContestCreateDialog({
                           addTagFromInput();
                         }
                       }}
-                      placeholder='Add a tag and press Enter (e.g., "graphs")'
+                      placeholder='Agrega un tag y presiona Enter (e.g., "grafos")'
                       className="w-full bg-transparent text-zinc-100 py-2 focus:outline-none"
                     />
                   </div>
@@ -481,27 +463,38 @@ export default function ContestCreateDialog({
                     onClick={addTagFromInput}
                     className="px-3 py-2 rounded-xl border border-white/10 text-zinc-100 bg-white/5 hover:bg-white/10 transition"
                   >
-                    Add
+                    Agregar
                   </button>
                 </div>
               </div>
             </Field>
+            <Field label="Notas (opcional)">
+              <div className="flex items-start gap-2 rounded-xl bg-zinc-800 border border-white/10 px-3">
+                <StickyNote size={16} className="text-zinc-400 mt-2" />
+                <textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Resumen rápido, advertencias, qué cubre, etc."
+                  rows={4}
+                  className="w-full bg-transparent text-zinc-100 py-2 focus:outline-none resize-y"
+                />
+              </div>
+            </Field>
 
-            {/* Footer */}
             <div className="pt-3 mt-2 border-t border-white/10 flex items-center justify-end gap-3">
               <button
                 type="button"
                 onClick={onClose}
                 className="px-4 py-2 rounded-xl text-zinc-300 border border-white/10 hover:bg-white/5 transition"
               >
-                Cancel
+                Cancelar
               </button>
               <button
                 type="submit"
                 disabled={submitting}
                 className="px-4 py-2 rounded-xl text-white bg-[#C5133D] hover:brightness-110 disabled:opacity-60 transition"
               >
-                {submitting ? 'Creando…' : 'Create Concurso'}
+                {submitting ? 'Creando…' : 'Crear Concurso'}
               </button>
             </div>
           </form>
