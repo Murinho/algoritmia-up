@@ -114,10 +114,11 @@ export type Resource = {
 export type EventItem = {
   id: number;
   title: string;
-  startsAt: string; // ISO
-  endsAt: string;   // ISO
+  startsAt: string;
+  endsAt: string;
   location: string;
   description: string;
-  image: string; // base64 or uploaded file URL
-  href?: string;
+  image: string;
+  videoCallLink?: string;
 };
+

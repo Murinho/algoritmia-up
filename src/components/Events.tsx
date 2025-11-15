@@ -2,103 +2,82 @@
 
 import Image from 'next/image';
 import { useEffect, useState } from 'react';
-import { Calendar, MapPin, Clock, Users, ArrowRight } from 'lucide-react';
+import { Calendar, MapPin, Clock, ArrowRight, Video } from 'lucide-react';
 
 import CreateEventButton from './CreateEventButton';
 import type { EventItem, UserRole } from '@/lib/types';
 import { API_BASE } from '@/lib/api';
 
-type CardContainerProps = React.HTMLAttributes<HTMLDivElement>;
-
-function CardContainer({ className = '', ...rest }: CardContainerProps) {
+function CardContainer(props: React.HTMLAttributes<HTMLDivElement>) {
+  const { className = '', ...rest } = props;
   return (
     <div
-      className={`overflow-hidden rounded-2xl border-2 border-gray-200 bg-white transition-all duration-300 hover:border-[#C5133D]/40 hover:shadow-xl ${className}`}
+      className={`overflow-hidden rounded-2xl border-2 border-gray-200 bg-white transition-all hover:border-[#C5133D]/40 hover:shadow-xl ${className}`}
       {...rest}
     />
   );
 }
 
-// ---- Helpers for dates/times based on startsAt/endsAt ----
+// ---- Helpers for dates/times ----
 
-function getDateFromIso(iso?: string): Date | null {
+function parseIso(iso?: string): Date | null {
   if (!iso) return null;
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
 function formatDisplayDate(event: EventItem): string {
-  const d = getDateFromIso(event.startsAt);
-  if (d) {
-    return d.toLocaleDateString('es-MX', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-    });
-  }
-  return ''
+  const d = parseIso(event.startsAt);
+  if (!d) return '';
+  return d.toLocaleDateString('es-MX', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
 }
 
 function formatDisplayTime(event: EventItem): string {
-  const start = getDateFromIso(event.startsAt);
-  const end = getDateFromIso(event.endsAt);
+  const start = parseIso(event.startsAt);
+  const end = parseIso(event.endsAt);
+  if (!start || !end) return '';
 
-  if (start && end) {
-    const opts: Intl.DateTimeFormatOptions = {
-      hour: 'numeric',
-      minute: '2-digit',
-    };
-    const startStr = start.toLocaleTimeString('es-MX', opts);
-    const endStr = end.toLocaleTimeString('es-MX', opts);
-    return `${startStr} – ${endStr}`;
-  }
-
-  if (start) {
-    return start.toLocaleTimeString('es-MX', {
-      hour: 'numeric',
-      minute: '2-digit',
-    });
-  }
-  return ''
+  const opts: Intl.DateTimeFormatOptions = {
+    hour: 'numeric',
+    minute: '2-digit',
+  };
+  return `${start.toLocaleTimeString('es-MX', opts)} – ${end.toLocaleTimeString(
+    'es-MX',
+    opts,
+  )}`;
 }
 
-// Build Google Calendar dates param using startsAt/endsAt if possible
 function buildCalendarDates(event: EventItem): string | null {
-  let start = getDateFromIso(event.startsAt);
-  let end = getDateFromIso(event.endsAt);
-
-  // If there is no endsAt but we have a start, default to +2h
-  if (start && !end) {
-    end = new Date(start.getTime() + 2 * 60 * 60 * 1000);
-  }
-
+  const start = parseIso(event.startsAt);
+  const end = parseIso(event.endsAt);
   if (!start || !end) return null;
 
-  const pad = (n: number) => String(n).padStart(2, '0');
+  const pad = (n: number) => `${n}`.padStart(2, '0');
 
-  const formatLocal = (d: Date) => {
-    const y = d.getFullYear();
-    const m = d.getMonth() + 1;
-    const da = d.getDate();
-    const h = d.getHours();
-    const mi = d.getMinutes();
-    return `${y}${pad(m)}${pad(da)}T${pad(h)}${pad(mi)}00`;
-  };
+  const fmt = (d: Date) =>
+    `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}T${pad(
+      d.getHours(),
+    )}${pad(d.getMinutes())}00`;
 
-  const startStr = formatLocal(start);
-  const endStr = formatLocal(end);
-
-  return `${startStr}/${endStr}`;
+  return `${fmt(start)}/${fmt(end)}`;
 }
 
-// Build the Google Calendar URL for an event
 function buildGoogleCalendarUrl(event: EventItem) {
   const base = 'https://calendar.google.com/calendar/render';
+
+  let details = event.description ?? '';
+  if (event.videoCallLink) {
+    details += `\n\nVideollamada: ${event.videoCallLink}`;
+  }
+
   const params = new URLSearchParams({
     action: 'TEMPLATE',
     text: event.title,
-    details:
-      event.description,
+    details,
     location: event.location,
   });
 
@@ -115,7 +94,6 @@ function EventCard({ event }: { event: EventItem }) {
 
   return (
     <CardContainer className="group">
-      {/* Image / badge / overlay */}
       <div className="relative h-48 w-full overflow-hidden">
         <Image
           src={event.image}
@@ -127,7 +105,6 @@ function EventCard({ event }: { event: EventItem }) {
         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
       </div>
 
-      {/* Body */}
       <div className="p-5">
         <h3 className="mb-2 text-xl font-semibold text-black transition-colors group-hover:text-[#C5133D]">
           {event.title}
@@ -150,9 +127,22 @@ function EventCard({ event }: { event: EventItem }) {
             <MapPin className="h-4 w-4" />
             <span>{event.location}</span>
           </div>
+
+          {event.videoCallLink && (
+            <div className="flex items-center gap-2">
+              <Video className="h-4 w-4" />
+              <a
+                href={event.videoCallLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[#C5133D] underline underline-offset-2 hover:text-[#a30f31]"
+              >
+                Videollamada
+              </a>
+            </div>
+          )}
         </div>
 
-        {/* Open Google Calendar "create event" in a new tab */}
         <a
           href={calendarUrl}
           target="_blank"
@@ -171,36 +161,14 @@ export default function EventsSection() {
   const [events, setEvents] = useState<EventItem[]>([
     {
       id: 1,
-      title: 'Copa Algoritmia',
+      title: 'Clase Inaugural Algoritmia UP',
       startsAt: '2024-04-05T14:00:00',
-      endsAt: '2024-04-05T17:00:00',
+      endsAt: '2024-04-05T16:00:00',
       location: 'Aula Byte C001',
-      description:
-        'Demuestra tus habilidades resolviendo problemas algorítmicos complejos.',
+      description: 'Bienvenida oficial al semestre y dinámicas de integración.',
       image:
         'https://images.unsplash.com/photo-1565687981296-535f09db714e?q=80&w=1170&auto=format&fit=crop',
-    },
-    {
-      id: 2,
-      title: 'Workshop: Segment Trees',
-      startsAt: '2024-03-22T16:00:00',
-      endsAt: '2024-03-22T19:00:00',
-      location: 'Laboratorio de Sistemas',
-      description:
-        'Aprende los usos y aplicaciones de Segment Trees en programación competitiva.',
-      image:
-        'https://images.unsplash.com/photo-1750020113706-b2238de0f18f?q=80&w=1332&auto=format&fit=crop',
-    },
-    {
-      id: 3,
-      title: 'Hackathon UP 2025',
-      startsAt: '2024-03-15T09:00:00',
-      endsAt: '2024-03-15T18:00:00',
-      location: 'Centro de Innovación UP',
-      description:
-        '48 horas de programación intensiva donde desarrollarás soluciones innovadoras.',
-      image:
-        'https://images.unsplash.com/photo-1515879218367-8466d910aaa4?q=80&w=1169&auto=format&fit=crop',
+      videoCallLink: undefined,
     },
   ]);
 
@@ -214,15 +182,12 @@ export default function EventsSection() {
         const res = await fetch(`${API_BASE}/auth/me`, {
           credentials: 'include',
         });
-
         if (!res.ok) {
           if (!cancelled) setUserRole(null);
           return;
         }
-
         const data = await res.json();
         const role = data.user?.role as UserRole | undefined;
-
         if (!cancelled) {
           setUserRole(role ?? 'user');
         }
@@ -242,21 +207,16 @@ export default function EventsSection() {
   return (
     <section id="events" className="bg-gray-50 py-20">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        {/* Header */}
         <div className="mb-10 text-center">
-          <h2
-            id="about-title"
-            className="text-3xl font-extrabold tracking-tight text-gray-800 sm:text-4xl"
-          >
+          <h2 className="text-3xl font-extrabold tracking-tight text-gray-800 sm:text-4xl">
             Eventos y <span className="text-[#C5133D]">Actividades</span>
           </h2>
           <p className="mx-auto mt-4 max-w-3xl text-xl text-gray-600">
-            Únete a nuestros eventos y desarrolla tus habilidades junto a la
-            comunidad de programadores más activa de la Universidad Panamericana.
+            Únete a nuestros eventos y desarrolla tus habilidades junto a la comunidad de
+            programadores más activa de la Universidad Panamericana.
           </p>
         </div>
 
-        {/* Create Button — only for coach/admin */}
         {canCreate && (
           <div className="mb-10 flex justify-end">
             <CreateEventButton
@@ -266,7 +226,6 @@ export default function EventsSection() {
           </div>
         )}
 
-        {/* Grid */}
         <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
           {events.map((event) => (
             <EventCard key={event.id} event={event} />
