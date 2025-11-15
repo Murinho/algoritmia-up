@@ -1,12 +1,20 @@
 from datetime import date
 from typing import Optional, Literal
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, UploadFile, File, Depends
 from pydantic import BaseModel, EmailStr, Field
 
+from pathlib import Path
+import secrets
+import os
+
 from .. import db
+from .auth import get_current_user
 
 router = APIRouter(prefix="/users", tags=["Users"])
+
+AVATAR_DIR = Path("uploads/avatars")
+AVATAR_DIR.mkdir(parents=True, exist_ok=True)
 
 DDL = """
 CREATE TABLE IF NOT EXISTS users (
@@ -65,6 +73,27 @@ class UserUpdate(BaseModel):
     profile_image_url: Optional[str] = None
     role: Optional[Literal["user", "coach", "admin"]] = None
 
+def _validate_entry_before_grad(
+    entry_year: int,
+    entry_month: int,
+    grad_year: int,
+    grad_month: int,
+) -> None:
+    # Compare (year, month) tuples
+    if (entry_year, entry_month) >= (grad_year, grad_month):
+        raise HTTPException(
+            status_code=422,
+            detail="La fecha de ingreso debe ser anterior a la fecha de graduación.",
+        )
+
+
+def _validate_birthdate_before_today(birthdate: date) -> None:
+    if birthdate >= date.today():
+        raise HTTPException(
+            status_code=422,
+            detail="La fecha de nacimiento debe ser anterior a hoy.",
+        )
+
 
 @router.get("")
 def list_users(q: Optional[str] = Query(None, description="Search by name or email")):
@@ -100,6 +129,17 @@ def get_user_by_email(email: EmailStr):
 
 @router.post("")
 def create_user(payload: UserCreate):
+    # birthdate check
+    _validate_birthdate_before_today(payload.birthdate)
+
+    # entry/grad check
+    _validate_entry_before_grad(
+        payload.entry_year,
+        payload.entry_month,
+        payload.grad_year,
+        payload.grad_month,
+    )
+
     with db.connect() as conn:
         sql = (
             "INSERT INTO users (full_name, preferred_name, email, codeforces_handle, birthdate, degree_program, "
@@ -128,6 +168,63 @@ def create_user(payload: UserCreate):
     return row
 
 
+@router.patch("/me")
+def update_me(
+    payload: UserUpdate,
+    auth_ctx = Depends(get_current_user),
+):
+    """
+    Update the currently authenticated user's profile fields.
+    Email and role are NOT editable from here.
+    Avatar is handled via /users/me/avatar.
+    """
+    user = auth_ctx["user"]
+    user_id = user["id"]
+
+    fields = payload.model_dump(exclude_unset=True)
+    if not fields:
+        raise HTTPException(status_code=400, detail="No fields to update")
+
+    # Never allow role/profile_image_url changes from here
+    fields.pop("role", None)
+    fields.pop("profile_image_url", None)
+
+    # NEW: birthdate validation if present
+    if "birthdate" in fields and fields["birthdate"] is not None:
+        _validate_birthdate_before_today(fields["birthdate"])
+
+    # Normalize country if present
+    if "country" in fields and fields["country"] and len(fields["country"]) == 2:
+        fields["country"] = fields["country"].lower()
+
+    effective_entry_year = fields.get("entry_year", user["entry_year"])
+    effective_entry_month = fields.get("entry_month", user["entry_month"])
+    effective_grad_year = fields.get("grad_year", user["grad_year"])
+    effective_grad_month = fields.get("grad_month", user["grad_month"])
+
+    _validate_entry_before_grad(
+        effective_entry_year,
+        effective_entry_month,
+        effective_grad_year,
+        effective_grad_month,
+    )
+
+    cols = ", ".join(f"{k}=%s" for k in fields.keys())
+    params = list(fields.values()) + [user_id]
+
+    with db.connect() as conn:
+        row = db.fetchone(
+            conn,
+            f"UPDATE users SET {cols} WHERE id=%s RETURNING *",
+            params,
+        )
+
+    if not row:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    return row
+
+""""
 @router.patch("/{user_id}")
 def update_user(user_id: int, payload: UserUpdate):
     fields = payload.model_dump(exclude_unset=True)
@@ -140,6 +237,7 @@ def update_user(user_id: int, payload: UserUpdate):
     if not row:
         raise HTTPException(status_code=404, detail="User not found")
     return row
+"""
 
 
 @router.delete("/{user_id}")
@@ -149,3 +247,117 @@ def delete_user(user_id: int):
     if count == 0:
         raise HTTPException(status_code=404, detail="User not found")
     return {"deleted": True}
+
+@router.post("/me/avatar")
+async def upload_avatar(
+    file: UploadFile = File(...),
+    auth_ctx = Depends(get_current_user),
+):
+    """
+    Upload a profile picture for the current user.
+    - Saves the new file
+    - Updates profile_image_url
+    - Deletes the previous file (if any and different)
+    """
+    user = auth_ctx["user"]
+    user_id = user["id"]
+
+    if file.content_type not in {"image/jpeg", "image/png", "image/webp"}:
+        raise HTTPException(status_code=400, detail="Formato de imagen no soportado.")
+
+    ext_map = {
+        "image/jpeg": ".jpg",
+        "image/png": ".png",
+        "image/webp": ".webp",
+    }
+    ext = ext_map.get(file.content_type, ".jpg")
+
+    # Generate filename: user_<id>_<random>.ext
+    random_part = secrets.token_hex(8)
+    filename = f"user_{user_id}_{random_part}{ext}"
+    dest_path = AVATAR_DIR / filename
+    public_path = f"/static/avatars/{filename}"
+
+    # Read file contents
+    contents = await file.read()
+    with dest_path.open("wb") as f:
+        f.write(contents)
+
+    # --- DB: get old path + set new path ---
+    with db.connect() as conn:
+        # Get the currently stored avatar path
+        row = db.fetchone(
+            conn,
+            "SELECT profile_image_url FROM users WHERE id=%s",
+            [user_id],
+        )
+        if not row:
+            # roll back file write by deleting the new file
+            try:
+                if dest_path.exists():
+                    dest_path.unlink()
+            except Exception:
+                pass
+            raise HTTPException(status_code=404, detail="User not found")
+
+        old_path = row["profile_image_url"]
+
+        # Update to new path
+        updated = db.fetchone(
+            conn,
+            "UPDATE users SET profile_image_url = %s WHERE id=%s RETURNING profile_image_url",
+            [public_path, user_id],
+        )
+
+    # --- Filesystem: delete old file if any ---
+    if old_path and old_path != public_path and old_path.startswith("/static/avatars/"):
+        old_filename = old_path.rsplit("/", 1)[-1]
+        old_file_path = AVATAR_DIR / old_filename
+        try:
+            if old_file_path.exists():
+                old_file_path.unlink()
+        except Exception:
+            # best-effort: don't crash if we can't delete
+            pass
+
+    return {"profile_image_url": updated["profile_image_url"]}
+
+@router.delete("/me/avatar")
+def delete_avatar(auth_ctx = Depends(get_current_user)):
+    """
+    Remove the current user's profile picture (DB and file on disk).
+    """
+    user = auth_ctx["user"]
+    user_id = user["id"]
+
+    with db.connect() as conn:
+        # Get old path
+        row = db.fetchone(
+            conn,
+            "SELECT profile_image_url FROM users WHERE id=%s",
+            [user_id],
+        )
+        if not row:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        old_path = row["profile_image_url"]
+
+        # Set to NULL in DB
+        db.fetchone(
+            conn,
+            "UPDATE users SET profile_image_url = NULL WHERE id=%s RETURNING id",
+            [user_id],
+        )
+
+    # Try to delete file from disk (best effort)
+    if old_path and old_path.startswith("/static/avatars/"):
+        filename = old_path.rsplit("/", 1)[-1]
+        file_path = AVATAR_DIR / filename
+        try:
+            if file_path.exists():
+                file_path.unlink()
+        except Exception:
+            # don't crash if file deletion fails
+            pass
+
+    return {"profile_image_url": None}

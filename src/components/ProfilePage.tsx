@@ -6,18 +6,27 @@ import { useRouter } from "next/navigation";
 // ---- Mock: replace with real user data from your API/auth ----
 const mockUser = {
   fullName: "Adrián Muro",
-  email: "adrian.muro@up.edu.mx", // usually read-only
+  preferredName: "Adrián",
+  email: "adrian.muro@up.edu.mx",
   codeforces: "adrianmuro",
   program: "Ingeniería en IA",
+  // birthdate -> split in UI
   birthDay: "12",
   birthMonth: "08",
   birthYear: "2002",
+  // entry_year / entry_month
   uniMonth: "08",
   uniYear: "2021",
+  // grad_year / grad_month
   gradMonth: "05",
   gradYear: "2026",
+  // country (DB) <-> countryCode (UI)
   countryCode: "mx", // ISO 3166-1 alpha-2 lowercase (for flagcdn)
-  avatarUrl: "", // user uploaded photo URL (public) — using preview below
+  avatarUrl: "", // profile_image_url in DB
+
+  // Non-editable in DB; may be shown read-only later if you want
+  role: "user",
+  createdAt: "",
 };
 
 const MONTHS = [
@@ -44,18 +53,201 @@ const PROGRAMS = [
 ];
 
 const COUNTRIES: Array<{ code: string; name: string }> = [
-  { code: "mx", name: "México" },
-  { code: "us", name: "Estados Unidos" },
-  { code: "ca", name: "Canadá" },
-  { code: "br", name: "Brasil" },
-  { code: "ar", name: "Argentina" },
-  { code: "es", name: "España" },
-  { code: "fr", name: "Francia" },
+  { code: "af", name: "Afganistán" },
+  { code: "al", name: "Albania" },
   { code: "de", name: "Alemania" },
+  { code: "ad", name: "Andorra" },
+  { code: "ao", name: "Angola" },
+  { code: "ag", name: "Antigua y Barbuda" },
+  { code: "sa", name: "Arabia Saudita" },
+  { code: "dz", name: "Argelia" },
+  { code: "ar", name: "Argentina" },
+  { code: "am", name: "Armenia" },
+  { code: "au", name: "Australia" },
+  { code: "at", name: "Austria" },
+  { code: "az", name: "Azerbaiyán" },
+  { code: "bs", name: "Bahamas" },
+  { code: "bh", name: "Baréin" },
+  { code: "bd", name: "Bangladés" },
+  { code: "bb", name: "Barbados" },
+  { code: "be", name: "Bélgica" },
+  { code: "bz", name: "Belice" },
+  { code: "bj", name: "Benín" },
+  { code: "by", name: "Bielorrusia" },
+  { code: "bo", name: "Bolivia" },
+  { code: "ba", name: "Bosnia y Herzegovina" },
+  { code: "bw", name: "Botsuana" },
+  { code: "br", name: "Brasil" },
+  { code: "bn", name: "Brunéi" },
+  { code: "bg", name: "Bulgaria" },
+  { code: "bf", name: "Burkina Faso" },
+  { code: "bi", name: "Burundi" },
+  { code: "bt", name: "Bután" },
+  { code: "cv", name: "Cabo Verde" },
+  { code: "kh", name: "Camboya" },
+  { code: "cm", name: "Camerún" },
+  { code: "ca", name: "Canadá" },
+  { code: "qa", name: "Catar" },
+  { code: "td", name: "Chad" },
+  { code: "cl", name: "Chile" },
+  { code: "cn", name: "China" },
+  { code: "cy", name: "Chipre" },
+  { code: "va", name: "Ciudad del Vaticano" },
+  { code: "co", name: "Colombia" },
+  { code: "km", name: "Comoras" },
+  { code: "cg", name: "Congo" },
+  { code: "cd", name: "Congo (Rep. Dem.)" },
+  { code: "kp", name: "Corea del Norte" },
+  { code: "kr", name: "Corea del Sur" },
+  { code: "ci", name: "Costa de Marfil" },
+  { code: "cr", name: "Costa Rica" },
+  { code: "hr", name: "Croacia" },
+  { code: "cu", name: "Cuba" },
+  { code: "dk", name: "Dinamarca" },
+  { code: "dm", name: "Dominica" },
+  { code: "ec", name: "Ecuador" },
+  { code: "eg", name: "Egipto" },
+  { code: "sv", name: "El Salvador" },
+  { code: "ae", name: "Emiratos Árabes Unidos" },
+  { code: "er", name: "Eritrea" },
+  { code: "sk", name: "Eslovaquia" },
+  { code: "si", name: "Eslovenia" },
+  { code: "es", name: "España" },
+  { code: "us", name: "Estados Unidos" },
+  { code: "ee", name: "Estonia" },
+  { code: "et", name: "Etiopía" },
+  { code: "ph", name: "Filipinas" },
+  { code: "fi", name: "Finlandia" },
+  { code: "fj", name: "Fiyi" },
+  { code: "fr", name: "Francia" },
+  { code: "ga", name: "Gabón" },
+  { code: "gm", name: "Gambia" },
+  { code: "ge", name: "Georgia" },
+  { code: "gh", name: "Ghana" },
+  { code: "gd", name: "Granada" },
+  { code: "gr", name: "Grecia" },
+  { code: "gt", name: "Guatemala" },
+  { code: "gn", name: "Guinea" },
+  { code: "gw", name: "Guinea-Bisáu" },
+  { code: "gq", name: "Guinea Ecuatorial" },
+  { code: "gy", name: "Guyana" },
+  { code: "ht", name: "Haití" },
+  { code: "hn", name: "Honduras" },
+  { code: "hu", name: "Hungría" },
+  { code: "in", name: "India" },
+  { code: "id", name: "Indonesia" },
+  { code: "iq", name: "Irak" },
+  { code: "ir", name: "Irán" },
+  { code: "ie", name: "Irlanda" },
+  { code: "is", name: "Islandia" },
+  { code: "mh", name: "Islas Marshall" },
+  { code: "sb", name: "Islas Salomón" },
+  { code: "il", name: "Israel" },
   { code: "it", name: "Italia" },
+  { code: "jm", name: "Jamaica" },
+  { code: "jp", name: "Japón" },
+  { code: "jo", name: "Jordania" },
+  { code: "kz", name: "Kazajistán" },
+  { code: "ke", name: "Kenia" },
+  { code: "kg", name: "Kirguistán" },
+  { code: "ki", name: "Kiribati" },
+  { code: "kw", name: "Kuwait" },
+  { code: "la", name: "Laos" },
+  { code: "ls", name: "Lesoto" },
+  { code: "lv", name: "Letonia" },
+  { code: "lb", name: "Líbano" },
+  { code: "lr", name: "Liberia" },
+  { code: "ly", name: "Libia" },
+  { code: "li", name: "Liechtenstein" },
+  { code: "lt", name: "Lituania" },
+  { code: "lu", name: "Luxemburgo" },
+  { code: "mg", name: "Madagascar" },
+  { code: "my", name: "Malasia" },
+  { code: "mw", name: "Malaui" },
+  { code: "mv", name: "Maldivas" },
+  { code: "ml", name: "Malí" },
+  { code: "mt", name: "Malta" },
+  { code: "ma", name: "Marruecos" },
+  { code: "mu", name: "Mauricio" },
+  { code: "mr", name: "Mauritania" },
+  { code: "mx", name: "México" },
+  { code: "fm", name: "Micronesia" },
+  { code: "md", name: "Moldavia" },
+  { code: "mc", name: "Mónaco" },
+  { code: "mn", name: "Mongolia" },
+  { code: "me", name: "Montenegro" },
+  { code: "mz", name: "Mozambique" },
+  { code: "na", name: "Namibia" },
+  { code: "nr", name: "Nauru" },
+  { code: "np", name: "Nepal" },
+  { code: "ni", name: "Nicaragua" },
+  { code: "ne", name: "Níger" },
+  { code: "ng", name: "Nigeria" },
+  { code: "no", name: "Noruega" },
+  { code: "nz", name: "Nueva Zelanda" },
+  { code: "om", name: "Omán" },
+  { code: "nl", name: "Países Bajos" },
+  { code: "pk", name: "Pakistán" },
+  { code: "pw", name: "Palaos" },
+  { code: "pa", name: "Panamá" },
+  { code: "pg", name: "Papúa Nueva Guinea" },
+  { code: "py", name: "Paraguay" },
+  { code: "pe", name: "Perú" },
+  { code: "pl", name: "Polonia" },
+  { code: "pt", name: "Portugal" },
   { code: "gb", name: "Reino Unido" },
-  // agrega los que necesites…
+  { code: "cf", name: "República Centroafricana" },
+  { code: "cz", name: "República Checa" },
+  { code: "mk", name: "República de Macedonia" },
+  { code: "do", name: "República Dominicana" },
+  { code: "rw", name: "Ruanda" },
+  { code: "ro", name: "Rumania" },
+  { code: "ru", name: "Rusia" },
+  { code: "ws", name: "Samoa" },
+  { code: "kn", name: "San Cristóbal y Nieves" },
+  { code: "sm", name: "San Marino" },
+  { code: "vc", name: "San Vicente y las Granadinas" },
+  { code: "lc", name: "Santa Lucía" },
+  { code: "st", name: "Santo Tomé y Príncipe" },
+  { code: "sn", name: "Senegal" },
+  { code: "rs", name: "Serbia" },
+  { code: "sc", name: "Seychelles" },
+  { code: "sl", name: "Sierra Leona" },
+  { code: "sg", name: "Singapur" },
+  { code: "sy", name: "Siria" },
+  { code: "so", name: "Somalia" },
+  { code: "lk", name: "Sri Lanka" },
+  { code: "za", name: "Sudáfrica" },
+  { code: "sd", name: "Sudán" },
+  { code: "ss", name: "Sudán del Sur" },
+  { code: "se", name: "Suecia" },
+  { code: "ch", name: "Suiza" },
+  { code: "sr", name: "Surinam" },
+  { code: "th", name: "Tailandia" },
+  { code: "tw", name: "Taiwán" },
+  { code: "tz", name: "Tanzania" },
+  { code: "tj", name: "Tayikistán" },
+  { code: "tl", name: "Timor Oriental" },
+  { code: "tg", name: "Togo" },
+  { code: "to", name: "Tonga" },
+  { code: "tt", name: "Trinidad y Tobago" },
+  { code: "tn", name: "Túnez" },
+  { code: "tm", name: "Turkmenistán" },
+  { code: "tr", name: "Turquía" },
+  { code: "tv", name: "Tuvalu" },
+  { code: "ua", name: "Ucrania" },
+  { code: "ug", name: "Uganda" },
+  { code: "uy", name: "Uruguay" },
+  { code: "uz", name: "Uzbekistán" },
+  { code: "vu", name: "Vanuatu" },
+  { code: "ve", name: "Venezuela" },
+  { code: "vn", name: "Vietnam" },
+  { code: "ye", name: "Yemen" },
+  { code: "dj", name: "Yibuti" },
+  { code: "zm", name: "Zambia" },
+  { code: "zw", name: "Zimbabue" },
 ];
+
 
 function yearsRange(from = 1980, to = new Date().getFullYear() + 8) {
   const arr: string[] = [];
@@ -68,6 +260,12 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
 
+  // password editing state
+  const [passwordForm, setPasswordForm] = useState({
+    current: "",
+    next: "",
+  });
+
   // NEW: auth guard state
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
@@ -79,9 +277,8 @@ export default function ProfilePage() {
     process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/+$/, "") || "";
 
   // Avatar handling
-  const [avatarPreview, setAvatarPreview] = useState<string>(
-    mockUser.avatarUrl || ""
-  );
+  const [avatarPreview, setAvatarPreview] = useState<string>("");
+
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const DAYS = useMemo(
@@ -101,6 +298,19 @@ export default function ProfilePage() {
     []
   );
 
+  // Helper to parse YYYY-MM-DD into (day, month, year)
+  const parseDateParts = (iso: string | null | undefined) => {
+    if (!iso) return null;
+    const parts = iso.split("-");
+    if (parts.length !== 3) return null;
+    const [year, month, day] = parts;
+    return {
+      year: year,
+      month: month.padStart(2, "0"),
+      day: day.padStart(2, "0"),
+    };
+  };
+
   // NEW: Block page if no active session, hydrate if authenticated
   useEffect(() => {
     let cancelled = false;
@@ -118,16 +328,50 @@ export default function ProfilePage() {
           }
           return;
         }
-        // Optional: hydrate from backend user
         const data = await res.json();
-        if (!cancelled && data?.user) {
+        const u = data?.user;
+        if (!cancelled && u) {
+          const birth = parseDateParts(u.birthdate);
           setForm((prev) => ({
             ...prev,
-            fullName: data.user.full_name ?? prev.fullName,
-            email: data.user.email ?? prev.email,
-            codeforces: data.user.codeforces_handle ?? prev.codeforces,
-            // keep other fields as-is until you add them server-side
+            fullName: u.full_name ?? prev.fullName,
+            preferredName: u.preferred_name ?? prev.preferredName,
+            email: u.email ?? prev.email,
+            codeforces: u.codeforces_handle ?? prev.codeforces,
+            program: u.degree_program ?? prev.program,
+            // birthdate
+            birthDay: birth?.day ?? prev.birthDay,
+            birthMonth: birth?.month ?? prev.birthMonth,
+            birthYear: birth?.year ?? prev.birthYear,
+            // entry_year / entry_month
+            uniYear:
+              (u.entry_year ? String(u.entry_year) : undefined) ?? prev.uniYear,
+            uniMonth:
+              (u.entry_month
+                ? String(u.entry_month).padStart(2, "0")
+                : undefined) ?? prev.uniMonth,
+            // grad_year / grad_month
+            gradYear:
+              (u.grad_year ? String(u.grad_year) : undefined) ?? prev.gradYear,
+            gradMonth:
+              (u.grad_month
+                ? String(u.grad_month).padStart(2, "0")
+                : undefined) ?? prev.gradMonth,
+            // country
+            countryCode:
+              u.country && u.country.length === 2
+                ? u.country.toLowerCase()
+                : prev.countryCode,
+            // profile_image_url (raw path from DB)
+            avatarUrl: u.profile_image_url ?? prev.avatarUrl,
+            role: u.role ?? prev.role,
+            createdAt: u.created_at ?? prev.createdAt,
           }));
+
+          if (u.profile_image_url) {
+            // full URL for the <img />
+            setAvatarPreview(`${API_BASE}${u.profile_image_url}`);
+          }
         }
       } catch {
         if (!cancelled) {
@@ -144,36 +388,172 @@ export default function ProfilePage() {
   }, [API_BASE, router]);
 
   const onPickAvatar = () => fileInputRef.current?.click();
-  const onFileChange: React.ChangeEventHandler<HTMLInputElement> = (e) => {
+  const onFileChange: React.ChangeEventHandler<HTMLInputElement> = async (e) => {
     const f = e.target.files?.[0];
     if (!f) return;
-    const url = URL.createObjectURL(f);
-    setAvatarPreview(url);
-    // Keep file in state if you want to upload it later
+
+    // Local preview (immediate feedback)
+    const localUrl = URL.createObjectURL(f);
+    setAvatarPreview(localUrl);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", f);
+
+      const res = await fetch(`${API_BASE}/users/me/avatar`, {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      });
+
+      if (!res.ok) {
+        console.error("Avatar upload error:", await res.text());
+        alert("No se pudo subir la foto de perfil. Intenta de nuevo.");
+        return;
+      }
+
+      const data: { profile_image_url: string } = await res.json();
+
+      // Update form state with the DB path
+      setForm((prev) => ({
+        ...prev,
+        avatarUrl: data.profile_image_url,
+      }));
+
+      // Use the persisted URL from the backend (overrides the blob preview)
+      setAvatarPreview(`${API_BASE}${data.profile_image_url}`);
+    } catch (err) {
+      console.error("Avatar upload exception:", err);
+      alert("Error inesperado al subir la foto de perfil.");
+    }
   };
+
 
   const handleChange = (key: keyof typeof form, value: string) =>
     setForm((prev) => ({ ...prev, [key]: value }));
 
+  const handlePasswordChange = (field: keyof typeof passwordForm, value: string) =>
+    setPasswordForm((prev) => ({ ...prev, [field]: value }));
+
   const handleSave = async () => {
     setSaving(true);
+
     try {
-      // TODO: send `form` + photo file to your API
-      await new Promise((r) => setTimeout(r, 800)); // demo
+      const wantsPasswordChange =
+        passwordForm.current || passwordForm.next;
+
+      if (wantsPasswordChange) {
+        if (!passwordForm.current || !passwordForm.next) {
+          alert("Para cambiar la contraseña, llena todos los campos de contraseña.");
+          setSaving(false);
+          return;
+        }
+        if (passwordForm.next.length < 8) {
+          alert("La nueva contraseña debe tener al menos 8 caracteres.");
+          setSaving(false);
+          return;
+        }
+
+        const strongPwd = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
+        if (!strongPwd.test(passwordForm.next)) {
+          alert(
+            "La nueva contraseña debe incluir al menos una minúscula, una mayúscula, un dígito y un símbolo."
+          );
+          setSaving(false);
+          return;
+        }
+      }
+
+      const entryYear = Number(form.uniYear);
+      const entryMonth = Number(form.uniMonth);
+      const gradYear = Number(form.gradYear);
+      const gradMonth = Number(form.gradMonth);
+
+      if (
+        gradYear < entryYear ||
+        (gradYear === entryYear && gradMonth <= entryMonth)
+      ) {
+        alert(
+          "La fecha de graduación debe ser posterior a la fecha de ingreso a la universidad."
+        );
+        setSaving(false);
+        return;
+      }
+
+      // --- 1) Build payload for /users/me ---
+      const birthdate = `${form.birthYear}-${form.birthMonth}-${form.birthDay}`;
+
+      const profilePayload = {
+        full_name: form.fullName.trim(),
+        preferred_name: form.preferredName.trim(),
+        codeforces_handle: form.codeforces.trim(),
+        degree_program: form.program,
+        birthdate,
+        entry_year: Number(form.uniYear),
+        entry_month: Number(form.uniMonth),
+        grad_year: Number(form.gradYear),
+        grad_month: Number(form.gradMonth),
+        country: form.countryCode.toLowerCase(), // DB stores 2-letter code
+        // profile_image_url is updated via /users/me/avatar, so we don't send it here
+      };
+
+      const resProfile = await fetch(`${API_BASE}/users/me`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(profilePayload),
+      });
+
+      if (!resProfile.ok) {
+        const text = await resProfile.text();
+        console.error("Profile update error:", text);
+        alert("No se pudo actualizar el perfil. Intenta de nuevo.");
+        setSaving(false);
+        return;
+      }
+
+      // --- 2) If user requested password change, call password endpoint ---
+      if (wantsPasswordChange) {
+        const resPwd = await fetch(`${API_BASE}/auth-identities/me/password`, {
+          method: "PATCH",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            current_password: passwordForm.current,
+            new_password: passwordForm.next,
+          }),
+        });
+
+        if (!resPwd.ok) {
+          const text = await resPwd.text();
+          console.error("Password change error:", text);
+          alert(
+            "El perfil se actualizó, pero no se pudo cambiar la contraseña. Verifica tu contraseña actual."
+          );
+          setSaving(false);
+          return;
+        }
+
+        // Password changed successfully -> clear password fields
+        setPasswordForm({ current: "", next: ""});
+      }
+
       alert("Perfil actualizado ✅");
     } catch (e) {
+      console.error(e);
       alert("No se pudo guardar. Intenta de nuevo.");
     } finally {
       setSaving(false);
     }
   };
 
+
   const handleLogout = async () => {
     try {
       setLoggingOut(true);
       const res = await fetch(`${API_BASE}/auth/logout`, {
         method: "POST",
-        credentials: "include", // ⬅️ important: send cookies
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
       });
 
@@ -193,7 +573,6 @@ export default function ProfilePage() {
     }
   };
 
-  // Early guard UI
   if (checkingAuth) {
     return (
       <div className="grid min-h-[100svh] place-items-center bg-gradient-to-br from-[#0D0D0D] via-[#2c1e28] to-[#C5133D]">
@@ -279,7 +658,24 @@ export default function ProfilePage() {
                       </button>
                       {avatarPreview && (
                         <button
-                          onClick={() => setAvatarPreview("")}
+                          onClick={async () => {
+                            try {
+                              const res = await fetch(`${API_BASE}/users/me/avatar`, {
+                                method: "DELETE",
+                                credentials: "include",
+                              });
+                              if (!res.ok) {
+                                console.error("Avatar delete error:", await res.text());
+                                alert("No se pudo quitar la foto de perfil.");
+                                return;
+                              }
+                              setAvatarPreview("");
+                              setForm((prev) => ({ ...prev, avatarUrl: "" }));
+                            } catch (err) {
+                              console.error("Avatar delete exception:", err);
+                              alert("Error inesperado al quitar la foto de perfil.");
+                            }
+                          }}
                           className="rounded-xl border border-white/20 px-4 py-2 text-sm text-white/90 hover:bg-white/10"
                         >
                           Quitar
@@ -317,14 +713,20 @@ export default function ProfilePage() {
                   label="Nombre completo"
                   value={form.fullName}
                   onChange={(v) => handleChange("fullName", v)}
-                  placeholder="Tu nombre"
+                  placeholder="Tu nombre completo"
                 />
                 <Field
-                  label="Email (@up.edu.mx)"
+                  label="Nombre preferido"
+                  value={form.preferredName}
+                  onChange={(v) => handleChange("preferredName", v)}
+                  placeholder="Cómo quieres que te llamemos"
+                />
+
+                <Field
+                  label="Email institucional"
                   value={form.email}
                   onChange={(v) => handleChange("email", v)}
                   placeholder="nombre.apellido@up.edu.mx"
-                  readOnly
                 />
 
                 <Field
@@ -334,6 +736,7 @@ export default function ProfilePage() {
                   placeholder="e.g. adrianmuro"
                 />
 
+                {/* Programa + País side by side */}
                 <SelectField
                   label="Programa"
                   value={form.program}
@@ -341,6 +744,24 @@ export default function ProfilePage() {
                   options={PROGRAMS.map((p) => ({ value: p, label: p }))}
                   placeholder="Selecciona tu programa"
                 />
+
+                <div>
+                  <Label>País de origen</Label>
+                  <div className="mt-1 flex items-center gap-3">
+                    <CountryFlag code={form.countryCode} />
+                    <SelectField
+                      label=""
+                      hideLabel
+                      value={form.countryCode}
+                      onChange={(v) => handleChange("countryCode", v)}
+                      options={COUNTRIES.map((c) => ({
+                        value: c.code,
+                        label: c.name,
+                      }))}
+                      placeholder="Selecciona tu país"
+                    />
+                  </div>
+                </div>
 
                 {/* Fecha de nacimiento */}
                 <div className="sm:col-span-2">
@@ -376,7 +797,7 @@ export default function ProfilePage() {
                   </div>
                 </div>
 
-                {/* Ingreso a la universidad */}
+                {/* Ingreso a la universidad -> entry_year / entry_month */}
                 <div className="sm:col-span-2">
                   <Label>Ingreso a la universidad</Label>
                   <div className="mt-1 grid grid-cols-2 gap-3">
@@ -399,7 +820,7 @@ export default function ProfilePage() {
                   </div>
                 </div>
 
-                {/* Graduación esperada */}
+                {/* Graduación esperada -> grad_year / grad_month */}
                 <div className="sm:col-span-2">
                   <Label>Graduación esperada</Label>
                   <div className="mt-1 grid grid-cols-2 gap-3">
@@ -421,27 +842,46 @@ export default function ProfilePage() {
                     />
                   </div>
                 </div>
+              </div>
 
-                {/* País de origen */}
-                <div className="sm:col-span-2">
-                  <Label>País de origen</Label>
-                  <div className="mt-1 flex items-center gap-3">
-                    <CountryFlag code={form.countryCode} />
-                    <SelectField
-                      label=""
-                      hideLabel
-                      value={form.countryCode}
-                      onChange={(v) => handleChange("countryCode", v)}
-                      options={COUNTRIES.map((c) => ({
-                        value: c.code,
-                        label: c.name,
-                      }))}
-                      placeholder="Selecciona tu país"
+              {/* Security / password section */}
+              <div className="mt-8 border-t border-white/10 pt-5">
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-white/70">
+                  Seguridad
+                </h2>
+                <p className="mt-1 text-xs text-white/60">
+                  Cambia tu contraseña de Algoritmia UP. Por seguridad, nunca
+                  mostramos tu contraseña real.
+                </p>
+
+                <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  {/* Current password input for verification */}
+                  <div>
+                    <Label>Introduce tu contraseña actual</Label>
+                    <input
+                      type="password"
+                      value={passwordForm.current}
+                      onChange={(e) =>
+                        handlePasswordChange("current", e.target.value)
+                      }
+                      placeholder="Contraseña actual"
+                      className="mt-1 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2.5 text-sm text-white placeholder:text-white/40 outline-none ring-0 focus:border-white/30"
+                    />
+                  </div>
+
+                  <div>
+                    <Label>Nueva contraseña</Label>
+                    <input
+                      type="password"
+                      value={passwordForm.next}
+                      onChange={(e) =>
+                        handlePasswordChange("next", e.target.value)
+                      }
+                      placeholder="Mínimo 8 caracteres"
+                      className="mt-1 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2.5 text-sm text-white placeholder:text-white/40 outline-none ring-0 focus:border-white/30"
                     />
                   </div>
                 </div>
-
-                {/* Password typically handled elsewhere; omit here for security */}
               </div>
 
               <div className="mt-6 flex justify-end gap-3">
@@ -465,7 +905,7 @@ export default function ProfilePage() {
 
         {/* Optional: tips / footer */}
         <p className="mx-auto mt-6 max-w-5xl text-center text-xs text-white/60">
-          Para cambiar tu contraseña o correo institucional, ve a{" "}
+          Para cambiar otros ajustes de cuenta avanzados, ve a{" "}
           <span className="text-white">Ajustes de cuenta</span>.
         </p>
       </section>
@@ -546,10 +986,13 @@ function SelectField({
 }
 
 function CountryFlag({ code }: { code: string }) {
-  // FlagCDN (SVG). Example: https://flagcdn.com/mx.svg
   return (
     <img
-      src={code ? `https://flagcdn.com/${code}.svg` : `https://flagcdn.com/placeholder.svg`}
+      src={
+        code
+          ? `https://flagcdn.com/${code}.svg`
+          : `https://flagcdn.com/placeholder.svg`
+      }
       alt="Bandera"
       width={28}
       height={20}
