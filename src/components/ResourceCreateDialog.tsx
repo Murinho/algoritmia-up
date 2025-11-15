@@ -1,4 +1,3 @@
-// app/components/ResourceCreateDialog.tsx
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
@@ -8,7 +7,6 @@ import {
   Tag as TagIcon,
   Star,
   BookOpen,
-  User,
   StickyNote,
   FileText,
   Notebook as NotebookIcon,
@@ -21,58 +19,45 @@ import {
   NewspaperIcon,
   BringToFrontIcon,
 } from 'lucide-react';
-
-// —— Types ——
-export type ResourceType =
-  | 'Notebook'
-  | 'PDF'
-  | 'Blog'
-  | 'Video'
-  | 'Book'
-  | 'Cheatsheet'
-  | 'Link'
-  | 'Sheet'
-  | 'Slideshow'
-  | 'Repo'
-  | 'Article'
-  | 'Other';
-
-export type Resource = {
-  id: string;
-  type: ResourceType;
-  title: string;
-  url: string;
-  topic: string[]; // multiple tags
-  difficulty: 1 | 2 | 3 | 4 | 5;
-  addedBy: string;
-  createdAt: string; // ISO string or formatted date
-  notes?: string;
-};
+import type { Resource, ResourceType, Difficulty } from '@/lib/types';
+import { createResource } from '@/lib/resources';
+import { HttpError } from '@/lib/api';
 
 type Props = {
   open: boolean;
   onClose: () => void;
   onCreate: (resource: Resource) => void;
-  defaultAddedBy?: string;
-  defaultCreatedAt?: string; // ISO, if omitted we use today
 };
 
-// —— Constants ——
 const RESOURCE_TYPES: ResourceType[] = [
-  'Notebook',
-  'PDF',
-  'Blog',
-  'Video',
-  'Book',
-  'Link',
-  'Sheet',
-  'Slideshow',
-  'Repo',
-  'Article',
-  'Other',
+  'notebook',
+  'pdf',
+  'blog',
+  'video',
+  'book',
+  'link',
+  'sheet',
+  'slideshow',
+  'repo',
+  'article',
+  'other',
 ];
 
-const DIFFICULTY_DESCRIPTIONS: Record<1 | 2 | 3 | 4 | 5, string> = {
+const RESOURCE_TYPE_LABELS: Record<ResourceType, string> = {
+  notebook: 'Notebook',
+  pdf: 'PDF',
+  blog: 'Blog',
+  video: 'Video',
+  book: 'Book',
+  link: 'Link',
+  sheet: 'Sheet',
+  slideshow: 'Slideshow',
+  repo: 'Repo',
+  article: 'Article',
+  other: 'Other',
+};
+
+const DIFFICULTY_DESCRIPTIONS: Record<Difficulty, string> = {
   1: 'Intro: material for first contact with a topic; gentle pace and examples.',
   2: 'Easy–Medium: fundamentals with small twists; assumes basic CP familiarity.',
   3: 'Medium: solid training; classic patterns with multi-step reasoning.',
@@ -80,29 +65,6 @@ const DIFFICULTY_DESCRIPTIONS: Record<1 | 2 | 3 | 4 | 5, string> = {
   5: 'Hard: expert-level resources; cutting-edge content or dense proofs.',
 };
 
-// —— Helpers ——
-function genId() {
-  return Math.random().toString(36).slice(2, 10);
-}
-
-function isoDateOnly(iso?: string) {
-  // returns YYYY-MM-DD for <input type="date">
-  if (!iso) return '';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
-
-function dateOnlyToISO(dateOnly: string) {
-  // interpret as local midnight
-  if (!dateOnly) return '';
-  const dt = new Date(`${dateOnly}T00:00:00`);
-  if (Number.isNaN(dt.getTime())) return '';
-  return dt.toISOString();
-}
-
-// —— Field Shell ——
 function Field({
   label,
   hint,
@@ -123,18 +85,17 @@ function Field({
   );
 }
 
-// —— Stars Input ——
 function Stars({
   value,
   onChange,
 }: {
-  value: 1 | 2 | 3 | 4 | 5;
-  onChange: (v: 1 | 2 | 3 | 4 | 5) => void;
+  value: Difficulty;
+  onChange: (v: Difficulty) => void;
 }) {
   const [hintOpen, setHintOpen] = useState(false);
   const hideRef = useRef<number | null>(null);
 
-  function handleClick(v: 1 | 2 | 3 | 4 | 5) {
+  function handleClick(v: Difficulty) {
     onChange(v);
     setHintOpen(true);
     if (hideRef.current) window.clearTimeout(hideRef.current);
@@ -158,7 +119,7 @@ function Stars({
             aria-checked={i === value}
             className="p-1 rounded hover:bg-white/5 transition outline-none focus:ring-2 focus:ring-[#C5133D]/60"
             aria-label={`${i} ${i === 1 ? 'star' : 'stars'}`}
-            onClick={() => handleClick(i as 1 | 2 | 3 | 4 | 5)}
+            onClick={() => handleClick(i as Difficulty)}
           >
             <Star
               size={18}
@@ -186,7 +147,6 @@ function Stars({
   );
 }
 
-// —— Tag Pills ——
 function TagPills({
   tags,
   onRemove,
@@ -219,62 +179,49 @@ function TagPills({
   );
 }
 
-// —— Icon for type ——
 function TypeIcon({ type }: { type: ResourceType }) {
   switch (type) {
-    case 'Notebook':
+    case 'notebook':
       return <NotebookIcon size={16} className="text-zinc-400" />;
-    case 'PDF':
+    case 'pdf':
       return <FileText size={16} className="text-zinc-400" />;
-    case 'Blog':
+    case 'blog':
       return <Globe size={16} className="text-zinc-400" />;
-    case 'Video':
+    case 'video':
       return <Video size={16} className="text-zinc-400" />;
-    case 'Repo':
+    case 'repo':
       return <FolderGit2 size={16} className="text-zinc-400" />;
-    case 'Book':
+    case 'book':
       return <Book size={16} className="text-zinc-400" />;
-    case 'Cheatsheet':
+    case 'sheet':
       return <SheetIcon size={16} className="text-zinc-400" />;
-    case 'Link':
+    case 'link':
       return <LinkIcon size={16} className="text-zinc-400" />;
-    case 'Slideshow':
+    case 'slideshow':
       return <Presentation size={16} className="text-zinc-400" />;
-    case 'Article':
+    case 'article':
       return <NewspaperIcon size={16} className="text-zinc-400" />;
-    case 'Other':
+    case 'other':
       return <BringToFrontIcon size={16} className="text-zinc-400" />;
     default:
       return <BookOpen size={16} className="text-zinc-400" />;
   }
 }
 
-// —— Main ——
-export default function ResourceCreateDialog({
-  open,
-  onClose,
-  onCreate,
-  defaultAddedBy = '',
-  defaultCreatedAt,
-}: Props) {
+export default function ResourceCreateDialog({ open, onClose, onCreate }: Props) {
   const initialFocusRef = useRef<HTMLInputElement | null>(null);
 
-  const [type, setType] = useState<ResourceType>('Notebook');
+  const [type, setType] = useState<ResourceType>('notebook');
   const [title, setTitle] = useState('');
   const [url, setUrl] = useState('');
   const [topics, setTopics] = useState<string[]>([]);
   const [topicInput, setTopicInput] = useState('');
-  const [difficulty, setDifficulty] = useState<1 | 2 | 3 | 4 | 5>(3);
-  const [addedBy, setAddedBy] = useState(defaultAddedBy);
-  const [createdAtDateOnly, setCreatedAtDateOnly] = useState(
-    isoDateOnly(defaultCreatedAt || new Date().toISOString()),
-  );
+  const [difficulty, setDifficulty] = useState<Difficulty>(3);
   const [notes, setNotes] = useState('');
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // focus + reset errors when opened
   useEffect(() => {
     if (open) {
       setTimeout(() => initialFocusRef.current?.focus(), 20);
@@ -300,8 +247,6 @@ export default function ResourceCreateDialog({
   function validate(): string | null {
     if (!title.trim()) return 'Title is required.';
     if (!/^https?:\/\//i.test(url.trim())) return 'Valid URL is required (http/https).';
-    if (addedBy.trim().length === 0) return 'Added by is required.';
-    if (!createdAtDateOnly) return 'Created date is required.';
     return null;
   }
 
@@ -313,32 +258,41 @@ export default function ResourceCreateDialog({
       return;
     }
     setSubmitting(true);
+    setError(null);
+
     try {
-      const resource: Resource = {
-        id: genId(),
+      const created = await createResource({
         type,
         title: title.trim(),
         url: url.trim(),
-        topic: topics,
+        tags: topics,
         difficulty,
-        addedBy: addedBy.trim(),
-        createdAt: dateOnlyToISO(createdAtDateOnly),
-        notes: notes.trim() || undefined,
-      };
-      onCreate(resource);
+        notes: notes.trim(),
+      });
+
+      onCreate(created);
       onClose();
 
-      // minimal reset for next open
+      // reset form
       setTitle('');
       setUrl('');
       setTopics([]);
       setTopicInput('');
       setNotes('');
       setDifficulty(3);
-      setType('Notebook');
-      setAddedBy(defaultAddedBy || '');
-      setCreatedAtDateOnly(isoDateOnly(new Date().toISOString()));
-      setError(null);
+      setType('notebook');
+    } catch (err: unknown) {
+      if (err instanceof HttpError) {
+        if (err.status === 403) {
+          setError('Solo coaches o admins pueden crear recursos.');
+        } else if (err.message) {
+          setError(String(err.message));
+        } else {
+          setError('Error creando el recurso. Intenta de nuevo.');
+        }
+      } else {
+        setError('Ocurrió un error inesperado. Intenta de nuevo.');
+      }
     } finally {
       setSubmitting(false);
     }
@@ -348,16 +302,12 @@ export default function ResourceCreateDialog({
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center" role="dialog" aria-modal="true">
-      {/* Backdrop */}
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
 
-      {/* Modal */}
       <div className="relative w-[min(680px,92vw)] max-h-[88vh] overflow-hidden rounded-2xl border border-white/10 shadow-2xl">
-        {/* Top Accent */}
         <div className="h-1 w-full bg-gradient-to-r from-[#C5133D] via-pink-500/60 to-transparent" />
 
         <div className="relative bg-zinc-900">
-          {/* Header */}
           <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
             <div className="flex items-center gap-2">
               <BookOpen className="text-zinc-200" size={18} />
@@ -372,7 +322,6 @@ export default function ResourceCreateDialog({
             </button>
           </div>
 
-          {/* Body */}
           <form onSubmit={handleSubmit} className="px-5 py-5 overflow-y-auto max-h-[76vh] space-y-5">
             {error && (
               <div className="text-sm text-red-300 bg-red-500/10 border border-red-500/30 px-3 py-2 rounded">
@@ -395,7 +344,7 @@ export default function ResourceCreateDialog({
                     ].join(' ')}
                   >
                     <TypeIcon type={t} />
-                    <span>{t}</span>
+                    <span>{RESOURCE_TYPE_LABELS[t]}</span>
                   </button>
                 ))}
               </div>
@@ -466,18 +415,6 @@ export default function ResourceCreateDialog({
             </Field>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Field label="Agregado por">
-                <div className="flex items-center gap-2 rounded-xl bg-zinc-800 border border-white/10 px-3">
-                  <User size={16} className="text-zinc-400" />
-                  <input
-                    value={addedBy}
-                    onChange={(e) => setAddedBy(e.target.value)}
-                    placeholder="Ana García"
-                    className="w-full bg-transparent text-zinc-100 py-2 focus:outline-none"
-                  />
-                </div>
-              </Field>
-
               <Field label="Dificultad">
                 <Stars value={difficulty} onChange={setDifficulty} />
               </Field>
@@ -496,7 +433,6 @@ export default function ResourceCreateDialog({
               </div>
             </Field>
 
-            {/* Footer */}
             <div className="pt-3 mt-2 border-t border-white/10 flex items-center justify-end gap-3">
               <button
                 type="button"

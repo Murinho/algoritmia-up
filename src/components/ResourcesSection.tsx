@@ -16,36 +16,13 @@ import {
   ChevronDown,
   Plus,
   Book,
+  FolderGit2,
+  NewspaperIcon,
+  BringToFrontIcon,
 } from 'lucide-react';
 
-import ResourceCreateDialog, {
-  type Resource as DialogResource,
-  type ResourceType as DialogResourceType,
-} from '@/components/ResourceCreateDialog';
-
-type ResourceType =
-  | 'pdf'
-  | 'blog'
-  | 'notebook'
-  | 'link'
-  | 'sheet'
-  | 'slideshow'
-  | 'video'
-  | 'book';
-
-type Resource = {
-  id: string;
-  type: ResourceType;
-  title: string;
-  url: string;
-  topic: string[];
-  difficulty: 1 | 2 | 3 | 4 | 5;
-  addedBy: string;
-  createdAt: string;
-  notes?: string;
-};
-
-type UserRole = 'user' | 'coach' | 'admin';
+import ResourceCreateDialog from '@/components/ResourceCreateDialog';
+import type { Resource, ResourceType, UserRole } from '@/lib/types';
 
 const TYPE_ICON: Record<ResourceType, JSX.Element> = {
   pdf: <FileText className="h-4 w-4" />,
@@ -56,43 +33,10 @@ const TYPE_ICON: Record<ResourceType, JSX.Element> = {
   slideshow: <Presentation className="h-4 w-4" />,
   video: <Video className="h-4 w-4" />,
   book: <Book className="h-4 w-4" />,
+  repo: <FolderGit2 className="h-4 w-4" />,
+  article: <NewspaperIcon className="h-4 w-4" />,
+  other: <BringToFrontIcon className="h-4 w-4" />,
 };
-
-const seedResources: Resource[] = [
-  {
-    id: 'r1',
-    type: 'notebook',
-    title: 'Heavy Light Decomposition Algorithm code c++',
-    url: 'https://github.com/Murinho/CP-Notebook/blob/main/Code/Graphs/heavy_light_decomposition.cpp',
-    topic: ['graphs', 'dp', 'team strategy'],
-    difficulty: 4,
-    addedBy: 'Adrián Muro',
-    createdAt: '2025-09-28T14:31:00Z',
-    notes: 'Template con lazy segtree y ejemplo de queries path.',
-  },
-  {
-    id: 'r2',
-    type: 'pdf',
-    title: 'Dinic + Min-Cost Max-Flow Cheatsheet',
-    url: 'https://cp-algorithms.com/graph/min_cost_flow.html',
-    topic: ['graphs', 'flows'],
-    difficulty: 5,
-    addedBy: 'Juan Marquina',
-    createdAt: '2025-09-18T10:02:00Z',
-    notes: 'Incluye casos borde y tips de performance.',
-  },
-  {
-    id: 'r3',
-    type: 'blog',
-    title: 'DP optimizations (Divide & Conquer, Knuth, CHT)',
-    url: 'https://codeforces.com/blog/entry/8219',
-    topic: ['dp', 'optimization'],
-    difficulty: 5,
-    addedBy: 'Erwin López',
-    createdAt: '2025-08-30T20:00:00Z',
-    notes: 'Resumen rápido con links a problemas clásicos.',
-  },
-];
 
 function Stars({ n }: { n: number }) {
   return (
@@ -109,49 +53,22 @@ function Stars({ n }: { n: number }) {
 type SortKey = keyof Pick<Resource, 'type' | 'title' | 'difficulty' | 'addedBy' | 'createdAt'>;
 type SortState = { key: SortKey; dir: 'asc' | 'desc' };
 
-// Map dialog’s ResourceType → table’s lowercase ResourceType
-const mapType = (t: DialogResourceType): ResourceType => {
-  switch (t) {
-    case 'PDF':
-      return 'pdf';
-    case 'Blog':
-    case 'Article':
-      return 'blog';
-    case 'Notebook':
-      return 'notebook';
-    case 'Link':
-      return 'link';
-    case 'Sheet':
-      return 'sheet';
-    case 'Slideshow':
-      return 'slideshow';
-    case 'Video':
-      return 'video';
-    case 'Book':
-      return 'book';
-    case 'Repo':
-    case 'Other':
-    default:
-      return 'link';
-  }
-};
-
 export default function ResourcesSection() {
   const router = useRouter();
 
-  // 🔒 Auth guard state
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<UserRole | null>(null);
   const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/+$/, '') || '';
 
-  // Local UI state
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<SortState>({ key: 'createdAt', dir: 'desc' });
-  const [resources, setResources] = useState<Resource[]>(seedResources);
+  const [resources, setResources] = useState<Resource[]>([]);
   const [openCreate, setOpenCreate] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  // 🔒 Check session + get role on mount
+  // Load current user's role
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -187,6 +104,54 @@ export default function ResourcesSection() {
     };
   }, [API_BASE, router]);
 
+  // Load resources from backend
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadResources() {
+      setLoading(true);
+      setLoadError(null);
+
+      try {
+        const res = await fetch(`${API_BASE}/resources`, {
+          credentials: 'include', // cookie if needed (even though list is public)
+        });
+
+        if (!res.ok) {
+          const text = await res.text().catch(() => '');
+          console.error('Failed to load resources:', res.status, text);
+          if (!cancelled) {
+            setLoadError('No se pudieron cargar los recursos.');
+            setResources([]);
+          }
+          return;
+        }
+
+        const json = await res.json();
+        const items = (json.items ?? []) as Resource[];
+
+        if (!cancelled) {
+          setResources(items);
+        }
+      } catch (err) {
+        console.error('Error fetching resources:', err);
+        if (!cancelled) {
+          setLoadError('Ocurrió un error al cargar los resources.');
+          setResources([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadResources();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const canCreate = userRole === 'coach' || userRole === 'admin';
 
   const data = useMemo(() => {
@@ -195,8 +160,8 @@ export default function ResourcesSection() {
       if (!q) return true;
       return (
         r.title.toLowerCase().includes(q) ||
-        r.addedBy.toLowerCase().includes(q) ||
-        r.topic.join(' ').toLowerCase().includes(q) ||
+        (r.addedBy || '').toLowerCase().includes(q) ||
+        r.tags.join(' ').toLowerCase().includes(q) ||
         r.type.toLowerCase().includes(q)
       );
     });
@@ -243,22 +208,10 @@ export default function ResourcesSection() {
     );
   }
 
-  function handleCreate(newResource: DialogResource) {
-    const mapped: Resource = {
-      id: newResource.id,
-      type: mapType(newResource.type),
-      title: newResource.title,
-      url: newResource.url,
-      topic: newResource.topic,
-      difficulty: newResource.difficulty,
-      addedBy: newResource.addedBy,
-      createdAt: newResource.createdAt,
-      notes: newResource.notes,
-    };
-    setResources((prev) => [mapped, ...prev]);
+  function handleCreate() {
+    setOpenCreate(false)
   }
 
-  // 🔒 Early guard UI
   if (checkingAuth) {
     return (
       <div className="grid min-h-[100svh] place-items-center bg-gradient-to-tr from-[#0D0D0D] via-[#2c1e28] to-[#C5133D]">
@@ -281,20 +234,14 @@ export default function ResourcesSection() {
   return (
     <section
       aria-labelledby="resources-title"
-      className="relative
-        min-h-[100dvh]
-        pt-[env(safe-area-inset-top)]
-        pb-[env(safe-area-inset-bottom)]
-        flex items-center"
+      className="relative min-h-[100dvh] pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] flex items-center"
     >
-      {/* Background gradient */}
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-tr from-[#0D0D0D] via-[#2c1e28] to-[#C5133D]"
       />
 
       <div className="mx-auto max-w-7xl px-6 lg:px-8">
-        {/* Header */}
         <div className="mb-8">
           <h2
             id="resources-title"
@@ -307,11 +254,9 @@ export default function ResourcesSection() {
           </p>
         </div>
 
-        {/* Card shell */}
         <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md">
           <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-[#C5133D] via-fuchsia-500 to-amber-400 opacity-90" />
 
-          {/* Toolbar */}
           <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="relative w-full sm:max-w-sm">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/60" />
@@ -341,7 +286,12 @@ export default function ResourcesSection() {
             </div>
           </div>
 
-          {/* Table */}
+          {loadError && (
+            <div className="px-4 pb-2 text-xs text-red-200">
+              {loadError}
+            </div>
+          )}
+
           <div className="overflow-x-auto">
             <table className="min-w-[900px] w-full text-left text-sm text-white/90">
               <thead>
@@ -372,7 +322,6 @@ export default function ResourcesSection() {
                     key={r.id}
                     className="border-b border-white/10 hover:bg-white/5"
                   >
-                    {/* Type */}
                     <td className="px-4 py-3">
                       <span className="inline-flex items-center gap-2 rounded-md border border-white/10 bg-black/30 px-2 py-1 text-xs capitalize">
                         {TYPE_ICON[r.type]}
@@ -380,12 +329,10 @@ export default function ResourcesSection() {
                       </span>
                     </td>
 
-                    {/* Title */}
                     <td className="px-4 py-3">
                       <span className="font-medium text-white">{r.title}</span>
                     </td>
 
-                    {/* URL */}
                     <td className="px-4 py-3">
                       {r.url ? (
                         <Link
@@ -401,10 +348,9 @@ export default function ResourcesSection() {
                       )}
                     </td>
 
-                    {/* Topics */}
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-1.5">
-                        {r.topic.map((t) => (
+                        {r.tags.map((t) => (
                           <span
                             key={t}
                             className="rounded-full border border-white/10 bg-black/30 px-2 py-0.5 text-xs text-white/90"
@@ -415,17 +361,14 @@ export default function ResourcesSection() {
                       </div>
                     </td>
 
-                    {/* Difficulty */}
                     <td className="px-4 py-3">
                       <Stars n={r.difficulty} />
                     </td>
 
-                    {/* Added by */}
                     <td className="px-4 py-3">
                       <span className="text-white/90">{r.addedBy}</span>
                     </td>
 
-                    {/* Created at */}
                     <td className="px-4 py-3">
                       <time
                         className="text-white/80"
@@ -436,7 +379,6 @@ export default function ResourcesSection() {
                       </time>
                     </td>
 
-                    {/* Notes */}
                     <td className="px-4 py-3">
                       <span className="text-white/80">
                         {r.notes ? r.notes : <span className="text-white/50">—</span>}
@@ -445,10 +387,18 @@ export default function ResourcesSection() {
                   </tr>
                 ))}
 
-                {data.length === 0 && (
+                {!loading && data.length === 0 && (
                   <tr>
-                    <td colSpan={8} className="px-4 py-10 text-center text-white/70">
+                    <td colSpan={10} className="px-4 py-10 text-center text-white/70">
                       No se encontraron recursos con “{query}”.
+                    </td>
+                  </tr>
+                )}
+
+                {loading && (
+                  <tr>
+                    <td colSpan={10} className="px-4 py-10 text-center text-white/70">
+                      Cargando recursos...
                     </td>
                   </tr>
                 )}
@@ -466,7 +416,6 @@ export default function ResourcesSection() {
         open={openCreate}
         onClose={() => setOpenCreate(false)}
         onCreate={handleCreate}
-        defaultAddedBy="Algoritmia UP"
       />
     </section>
   );

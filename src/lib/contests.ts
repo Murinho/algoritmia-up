@@ -31,7 +31,6 @@ type ApiContestRow = {
   notes: string | null;
 };
 
-// 👇 adapt to your frontend `Contest` shape
 function toUiContest(row: ApiContestRow): Contest {
   return {
     id: String(row.id),
