@@ -12,19 +12,7 @@ import {
   CheckCircle,
   Upload,
 } from 'lucide-react';
-
-export type EventItem = {
-  id: number;
-  title: string;
-  date: string;
-  time: string;
-  location: string;
-  description: string;
-  image: string; // base64 or uploaded file URL
-  status: 'Próximo' | 'Disponible' | 'Abierto';
-  participants: string;
-  href?: string;
-};
+import type { EventItem } from '@/lib/types';
 
 type Props = {
   open: boolean;
@@ -36,15 +24,13 @@ function genIdNumber() {
   return Date.now();
 }
 
-function Field({
-  label,
-  hint,
-  children,
-}: {
+type FieldProps = {
   label: string;
   hint?: string;
   children: React.ReactNode;
-}) {
+};
+
+function Field({ label, hint, children }: FieldProps) {
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
@@ -57,24 +43,26 @@ function Field({
 }
 
 // ——— Small Upload Field Component ———
-function ImageUploader({
-  onChange,
-  value,
-}: {
+type ImageUploaderProps = {
   value?: string;
   onChange: (base64: string) => void;
-}) {
+};
+
+function ImageUploader({ value, onChange }: ImageUploaderProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+
     if (!file.type.startsWith('image/')) {
       setError('El archivo debe ser una imagen.');
       return;
     }
+
     setError(null);
+
     const reader = new FileReader();
     reader.onloadend = () => {
       const result = reader.result as string;
@@ -89,7 +77,7 @@ function ImageUploader({
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
-          className="inline-flex items-center gap-2 rounded-xl bg-[#C5133D]/20 border border-[#C5133D]/40 px-3 py-2 text-sm text-white hover:brightness-110 transition"
+          className="inline-flex items-center gap-2 rounded-xl border border-[#C5133D]/40 bg-[#C5133D]/20 px-3 py-2 text-sm text-white transition hover:brightness-110"
         >
           <Upload size={16} />
           Subir Imagen
@@ -117,7 +105,7 @@ function ImageUploader({
           <img
             src={value}
             alt="Vista previa"
-            className="max-h-48 w-full object-cover rounded-lg"
+            className="max-h-48 w-full rounded-lg object-cover"
           />
         </div>
       )}
@@ -130,14 +118,12 @@ export default function EventCreateDialog({ open, onClose, onCreate }: Props) {
   const initialFocusRef = useRef<HTMLInputElement | null>(null);
 
   const [title, setTitle] = useState('');
-  const [date, setDate] = useState('');
-  const [time, setTime] = useState('');
+  const [startsAtLocal, setStartsAtLocal] = useState(''); // "YYYY-MM-DDTHH:MM"
+  const [endsAtLocal, setEndsAtLocal] = useState('');   // "YYYY-MM-DDTHH:MM"
   const [location, setLocation] = useState('');
   const [description, setDescription] = useState('');
   const [image, setImage] = useState('');
   const [href, setHref] = useState('');
-  const [status, setStatus] = useState<EventItem['status']>('Próximo');
-  const [participants, setParticipants] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -148,53 +134,65 @@ export default function EventCreateDialog({ open, onClose, onCreate }: Props) {
     }
   }, [open]);
 
+  function resetForm() {
+    setTitle('');
+    setStartsAtLocal('');
+    setEndsAtLocal('');
+    setLocation('');
+    setDescription('');
+    setImage('');
+    setHref('');
+    setError(null);
+  }
+
   function validate(): string | null {
     if (!title.trim()) return 'El título es obligatorio.';
-    if (!date) return 'La fecha es obligatoria.';
-    if (!time) return 'La hora es obligatoria.';
+    if (!startsAtLocal) return 'La fecha y hora de inicio son obligatorias.';
+    if (!endsAtLocal) return 'La fecha y hora de fin son obligatorias.';
+
+    const start = new Date(startsAtLocal);
+    const end = new Date(endsAtLocal);
+
+    if (Number.isNaN(start.getTime())) return 'La fecha/hora de inicio no es válida.';
+    if (Number.isNaN(end.getTime())) return 'La fecha/hora de fin no es válida.';
+    if (end <= start) return 'La fecha/hora de fin debe ser posterior a la de inicio.';
+
     if (!location.trim()) return 'La ubicación es obligatoria.';
     if (!description.trim()) return 'La descripción es obligatoria.';
     if (!image) return 'Debes subir una imagen para el evento.';
-    if (href && !/^https?:\/\//i.test(href)) return 'El enlace (opcional) debe ser un URL válido.';
+    if (href && !/^https?:\/\//i.test(href)) {
+      return 'El enlace (opcional) debe ser un URL válido.';
+    }
     return null;
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const v = validate();
-    if (v) {
-      setError(v);
+    const validationError = validate();
+    if (validationError) {
+      setError(validationError);
       return;
     }
+
+    const startsAt = new Date(startsAtLocal).toISOString();
+    const endsAt = new Date(endsAtLocal).toISOString();
 
     setSubmitting(true);
     try {
       const eventItem: EventItem = {
         id: genIdNumber(),
         title: title.trim(),
-        date,
-        time,
+        startsAt,
+        endsAt,
         location: location.trim(),
         description: description.trim(),
         image,
-        status,
-        participants: participants.trim(),
         href: href.trim() || undefined,
       };
+
       onCreate(eventItem);
       onClose();
-
-      // Reset
-      setTitle('');
-      setDate('');
-      setTime('');
-      setLocation('');
-      setDescription('');
-      setImage('');
-      setHref('');
-      setStatus('Próximo');
-      setParticipants('');
-      setError(null);
+      resetForm();
     } finally {
       setSubmitting(false);
     }
@@ -203,29 +201,39 @@ export default function EventCreateDialog({ open, onClose, onCreate }: Props) {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center" role="dialog" aria-modal="true">
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center"
+      role="dialog"
+      aria-modal="true"
+    >
+      <div
+        className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+        onClick={onClose}
+      />
 
-      <div className="relative w-[min(720px,94vw)] max-h-[90vh] overflow-hidden rounded-2xl border border-white/10 shadow-2xl">
+      <div className="relative max-h-[90vh] w-[min(720px,94vw)] overflow-hidden rounded-2xl border border-white/10 shadow-2xl">
         <div className="h-1 w-full bg-gradient-to-r from-[#C5133D] via-pink-500/60 to-transparent" />
         <div className="relative bg-zinc-900">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
+          <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
             <div className="flex items-center gap-2">
               <CheckCircle className="text-zinc-200" size={18} />
-              <h2 className="text-zinc-100 font-semibold">Crear Evento</h2>
+              <h2 className="font-semibold text-zinc-100">Crear Evento</h2>
             </div>
             <button
               onClick={onClose}
-              className="rounded p-2 hover:bg-white/5 text-zinc-400 hover:text-zinc-100 transition"
+              className="rounded p-2 text-zinc-400 transition hover:bg-white/5 hover:text-zinc-100"
               aria-label="Cerrar diálogo"
             >
               <X size={18} />
             </button>
           </div>
 
-          <form onSubmit={handleSubmit} className="px-5 py-5 overflow-y-auto max-h-[78vh] space-y-5">
+          <form
+            onSubmit={handleSubmit}
+            className="max-h-[78vh] space-y-5 overflow-y-auto px-5 py-5"
+          >
             {error && (
-              <div className="text-sm text-red-300 bg-red-500/10 border border-red-500/30 px-3 py-2 rounded">
+              <div className="rounded border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
                 {error}
               </div>
             )}
@@ -236,93 +244,52 @@ export default function EventCreateDialog({ open, onClose, onCreate }: Props) {
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="Kickoff Algoritmia UP — Temporada 2025"
-                className="w-full rounded-xl bg-zinc-800 text-zinc-100 placeholder-zinc-500 px-3 py-2 border border-white/10 focus:outline-none focus:ring-2 focus:ring-[#C5133D]/60"
+                className="w-full rounded-xl border border-white/10 bg-zinc-800 px-3 py-2 text-zinc-100 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-[#C5133D]/60"
               />
             </Field>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Field label="Fecha">
-                <div className="flex items-center gap-2 rounded-xl bg-zinc-800 border border-white/10 px-3">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <Field label="Fecha y hora de inicio">
+                <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-zinc-800 px-3">
                   <Calendar size={16} className="text-zinc-400" />
                   <input
-                    type="date"
-                    value={date}
-                    onChange={(e) => setDate(e.target.value)}
-                    className="w-full bg-transparent text-zinc-100 py-2 focus:outline-none"
+                    type="datetime-local"
+                    value={startsAtLocal}
+                    onChange={(e) => setStartsAtLocal(e.target.value)}
+                    className="w-full bg-transparent py-2 text-zinc-100 focus:outline-none"
                   />
                 </div>
               </Field>
 
-              <Field label="Hora">
-                <div className="flex items-center gap-2 rounded-xl bg-zinc-800 border border-white/10 px-3">
+              <Field label="Fecha y hora de fin">
+                <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-zinc-800 px-3">
                   <Clock size={16} className="text-zinc-400" />
                   <input
-                    type="time"
-                    value={time}
-                    onChange={(e) => setTime(e.target.value)}
-                    className="w-full bg-transparent text-zinc-100 py-2 focus:outline-none"
+                    type="datetime-local"
+                    value={endsAtLocal}
+                    onChange={(e) => setEndsAtLocal(e.target.value)}
+                    className="w-full bg-transparent py-2 text-zinc-100 focus:outline-none"
                   />
                 </div>
               </Field>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <Field label="Ubicación">
-                <div className="flex items-center gap-2 rounded-xl bg-zinc-800 border border-white/10 px-3">
+                <div className="flex items-center gap-2 rounded-xl border border.white/10 bg-zinc-800 px-3">
                   <MapPin size={16} className="text-zinc-400" />
                   <input
                     value={location}
                     onChange={(e) => setLocation(e.target.value)}
                     placeholder="Remoto / Campus UP / A-201"
-                    className="w-full bg-transparent text-zinc-100 py-2 focus:outline-none"
+                    className="w-full bg-transparent py-2 text-zinc-100 focus:outline-none"
                   />
                 </div>
               </Field>
 
-              <Field label="Estado">
-                <div className="flex gap-2">
-                  {['Próximo', 'Disponible', 'Abierto'].map((s) => (
-                    <button
-                      type="button"
-                      key={s}
-                      onClick={() => setStatus(s as EventItem['status'])}
-                      className={[
-                        'px-3 py-2 rounded-xl border transition',
-                        s === status
-                          ? 'bg-[#C5133D]/20 border-[#C5133D]/50 text-zinc-100'
-                          : 'bg-zinc-800 border-white/10 text-zinc-300 hover:bg-white/5',
-                      ].join(' ')}
-                    >
-                      {s}
-                    </button>
-                  ))}
-                </div>
-              </Field>
-            </div>
-
-            <Field label="Descripción">
-              <div className="rounded-xl bg-zinc-800 border border-white/10 px-3">
-                <div className="flex items-start gap-2">
-                  <FileText size={16} className="text-zinc-400 mt-2" />
-                  <textarea
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    placeholder="Presentación del club, dinámica del semestre y retos de programación en vivo."
-                    rows={4}
-                    className="w-full bg-transparent text-zinc-100 py-2 focus:outline-none resize-y"
-                  />
-                </div>
-              </div>
-            </Field>
-
-            <Field label="Imagen del evento" hint="Sube una imagen en formato JPG o PNG">
-              <ImageUploader value={image} onChange={setImage} />
-            </Field>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Field label="Enlace (opcional)" hint="http(s)://">
                 <div className="flex items-center gap-2">
-                  <div className="rounded-xl bg-zinc-800 border border-white/10 flex-1 flex items-center">
+                  <div className="flex flex-1 items-center rounded-xl border border-white/10 bg-zinc-800">
                     <span className="pl-3 pr-1 text-zinc-400">
                       <LinkIcon size={16} />
                     </span>
@@ -330,38 +297,48 @@ export default function EventCreateDialog({ open, onClose, onCreate }: Props) {
                       value={href}
                       onChange={(e) => setHref(e.target.value)}
                       placeholder="https://algoritmia.up/evento/kickoff"
-                      className="w-full bg-transparent text-zinc-100 placeholder-zinc-500 px-2 py-2 focus:outline-none"
+                      className="w-full bg-transparent px-2 py-2 text-zinc-100 placeholder-zinc-500 focus:outline-none"
                     />
                   </div>
                 </div>
               </Field>
-
-              <Field label="Participantes" hint='Ej.: "30 registrados" o "25/50"'>
-                <div className="flex items-center gap-2 rounded-xl bg-zinc-800 border border-white/10 px-3">
-                  <Users size={16} className="text-zinc-400" />
-                  <input
-                    value={participants}
-                    onChange={(e) => setParticipants(e.target.value)}
-                    placeholder="30 registrados"
-                    className="w-full bg-transparent text-zinc-100 py-2 focus:outline-none"
-                  />
-                </div>
-              </Field>
             </div>
 
+            <Field label="Descripción">
+              <div className="rounded-xl border border-white/10 bg-zinc-800 px-3">
+                <div className="flex items.start gap-2">
+                  <FileText size={16} className="mt-2 text-zinc-400" />
+                  <textarea
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="Presentación del club, dinámica del semestre y retos de programación en vivo."
+                    rows={4}
+                    className="w-full resize-y bg-transparent py-2 text-zinc-100 focus:outline-none"
+                  />
+                </div>
+              </div>
+            </Field>
+
+            <Field
+              label="Imagen del evento"
+              hint="Sube una imagen en formato JPG o PNG"
+            >
+              <ImageUploader value={image} onChange={setImage} />
+            </Field>
+
             {/* Footer */}
-            <div className="pt-3 mt-2 border-t border-white/10 flex items-center justify-end gap-3">
+            <div className="mt-2 flex items-center justify-end gap-3 border-t border-white/10 pt-3">
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 rounded-xl text-zinc-300 border border-white/10 hover:bg-white/5 transition"
+                className="rounded-xl border border-white/10 px-4 py-2 text-zinc-300 transition hover:bg.white/5"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
                 disabled={submitting}
-                className="px-4 py-2 rounded-xl text-white bg-[#C5133D] hover:brightness-110 disabled:opacity-60 transition"
+                className="rounded-xl bg-[#C5133D] px-4 py-2 text-white transition hover:brightness-110 disabled:opacity-60"
               >
                 {submitting ? 'Creando…' : 'Crear Evento'}
               </button>

@@ -1,22 +1,16 @@
 'use client';
 
 import Image from 'next/image';
+import { useEffect, useState } from 'react';
 import { Calendar, MapPin, Clock, Users, ArrowRight } from 'lucide-react';
-import { useState, useEffect } from 'react';
+
 import CreateEventButton from './CreateEventButton';
-import type { EventItem } from './EventCreateDialog';
-import { API_BASE } from '@/lib/api'; // ✅ reuse your existing API base
+import type { EventItem, UserRole } from '@/lib/types';
+import { API_BASE } from '@/lib/api';
 
-type UserRole = 'user' | 'coach' | 'admin';
+type CardContainerProps = React.HTMLAttributes<HTMLDivElement>;
 
-function statusClasses(s: EventItem['status']) {
-  if (s === 'Próximo') return 'bg-red-100 text-red-800';
-  if (s === 'Disponible') return 'bg-yellow-100 text-yellow-800';
-  return 'bg-gray-100 text-gray-800';
-}
-
-function CardContainer(props: React.HTMLAttributes<HTMLDivElement>) {
-  const { className = '', ...rest } = props;
+function CardContainer({ className = '', ...rest }: CardContainerProps) {
   return (
     <div
       className={`overflow-hidden rounded-2xl border-2 border-gray-200 bg-white transition-all duration-300 hover:border-[#C5133D]/40 hover:shadow-xl ${className}`}
@@ -25,65 +19,147 @@ function CardContainer(props: React.HTMLAttributes<HTMLDivElement>) {
   );
 }
 
-function EventCard({ e }: { e: EventItem }) {
+// ---- Helpers for dates/times based on startsAt/endsAt ----
+
+function getDateFromIso(iso?: string): Date | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function formatDisplayDate(event: EventItem): string {
+  const d = getDateFromIso(event.startsAt);
+  if (d) {
+    return d.toLocaleDateString('es-MX', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
+  }
+  return ''
+}
+
+function formatDisplayTime(event: EventItem): string {
+  const start = getDateFromIso(event.startsAt);
+  const end = getDateFromIso(event.endsAt);
+
+  if (start && end) {
+    const opts: Intl.DateTimeFormatOptions = {
+      hour: 'numeric',
+      minute: '2-digit',
+    };
+    const startStr = start.toLocaleTimeString('es-MX', opts);
+    const endStr = end.toLocaleTimeString('es-MX', opts);
+    return `${startStr} – ${endStr}`;
+  }
+
+  if (start) {
+    return start.toLocaleTimeString('es-MX', {
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+  }
+  return ''
+}
+
+// Build Google Calendar dates param using startsAt/endsAt if possible
+function buildCalendarDates(event: EventItem): string | null {
+  let start = getDateFromIso(event.startsAt);
+  let end = getDateFromIso(event.endsAt);
+
+  // If there is no endsAt but we have a start, default to +2h
+  if (start && !end) {
+    end = new Date(start.getTime() + 2 * 60 * 60 * 1000);
+  }
+
+  if (!start || !end) return null;
+
+  const pad = (n: number) => String(n).padStart(2, '0');
+
+  const formatLocal = (d: Date) => {
+    const y = d.getFullYear();
+    const m = d.getMonth() + 1;
+    const da = d.getDate();
+    const h = d.getHours();
+    const mi = d.getMinutes();
+    return `${y}${pad(m)}${pad(da)}T${pad(h)}${pad(mi)}00`;
+  };
+
+  const startStr = formatLocal(start);
+  const endStr = formatLocal(end);
+
+  return `${startStr}/${endStr}`;
+}
+
+// Build the Google Calendar URL for an event
+function buildGoogleCalendarUrl(event: EventItem) {
+  const base = 'https://calendar.google.com/calendar/render';
+  const params = new URLSearchParams({
+    action: 'TEMPLATE',
+    text: event.title,
+    details:
+      event.description,
+    location: event.location,
+  });
+
+  const dates = buildCalendarDates(event);
+  if (dates) {
+    params.set('dates', dates);
+  }
+
+  return `${base}?${params.toString()}`;
+}
+
+function EventCard({ event }: { event: EventItem }) {
+  const calendarUrl = buildGoogleCalendarUrl(event);
+
   return (
     <CardContainer className="group">
       {/* Image / badge / overlay */}
       <div className="relative h-48 w-full overflow-hidden">
         <Image
-          src={e.image}
-          alt={e.title}
+          src={event.image}
+          alt={event.title}
           fill
           sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
           className="object-cover transition-transform duration-300 group-hover:scale-105"
-          priority={false}
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-        <div className="absolute top-4 left-4">
-          <span
-            className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${statusClasses(
-              e.status
-            )}`}
-          >
-            {e.status}
-          </span>
-        </div>
-        <div className="absolute bottom-4 left-4 flex items-center gap-1 text-sm text-white">
-          <Users className="h-4 w-4" />
-          <span>{e.participants}</span>
-        </div>
       </div>
 
       {/* Body */}
       <div className="p-5">
         <h3 className="mb-2 text-xl font-semibold text-black transition-colors group-hover:text-[#C5133D]">
-          {e.title}
+          {event.title}
         </h3>
 
         <p className="mb-4 text-sm leading-relaxed text-gray-600">
-          {e.description}
+          {event.description}
         </p>
 
         <div className="mb-5 space-y-2 text-sm text-gray-500">
           <div className="flex items-center gap-2">
             <Calendar className="h-4 w-4" />
-            <span>{e.date}</span>
+            <span>{formatDisplayDate(event)}</span>
           </div>
           <div className="flex items-center gap-2">
             <Clock className="h-4 w-4" />
-            <span>{e.time}</span>
+            <span>{formatDisplayTime(event)}</span>
           </div>
           <div className="flex items-center gap-2">
             <MapPin className="h-4 w-4" />
-            <span>{e.location}</span>
+            <span>{event.location}</span>
           </div>
         </div>
 
+        {/* Open Google Calendar "create event" in a new tab */}
         <a
-          href={e.href ?? '#'}
+          href={calendarUrl}
+          target="_blank"
+          rel="noopener noreferrer"
           className="group/button inline-flex w-full items-center justify-center gap-2 rounded-xl bg-black px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#C5133D] focus:outline-none focus:ring-2 focus:ring-[#C5133D]/40"
         >
-          Registrarse
+          Agregar a Google Calendar
           <ArrowRight className="h-4 w-4 transition-transform group-hover/button:translate-x-1" />
         </a>
       </div>
@@ -96,50 +172,40 @@ export default function EventsSection() {
     {
       id: 1,
       title: 'Copa Algoritmia',
-      date: '5 Abril, 2024',
-      time: '2:00 PM – 5:00 PM',
+      startsAt: '2024-04-05T14:00:00',
+      endsAt: '2024-04-05T17:00:00',
       location: 'Aula Byte C001',
       description:
         'Demuestra tus habilidades resolviendo problemas algorítmicos complejos.',
       image:
         'https://images.unsplash.com/photo-1565687981296-535f09db714e?q=80&w=1170&auto=format&fit=crop',
-      status: 'Abierto',
-      participants: 'Registro abierto',
-      href: '#',
     },
     {
       id: 2,
       title: 'Workshop: Segment Trees',
-      date: '22 Marzo, 2024',
-      time: '4:00 PM – 7:00 PM',
+      startsAt: '2024-03-22T16:00:00',
+      endsAt: '2024-03-22T19:00:00',
       location: 'Laboratorio de Sistemas',
       description:
         'Aprende los usos y aplicaciones de Segment Trees en programación competitiva.',
       image:
         'https://images.unsplash.com/photo-1750020113706-b2238de0f18f?q=80&w=1332&auto=format&fit=crop',
-      status: 'Disponible',
-      participants: '45/50 lugares',
-      href: '#',
     },
     {
       id: 3,
       title: 'Hackathon UP 2025',
-      date: '15–17 Marzo, 2024',
-      time: '9:00 AM – 6:00 PM',
+      startsAt: '2024-03-15T09:00:00',
+      endsAt: '2024-03-15T18:00:00',
       location: 'Centro de Innovación UP',
       description:
         '48 horas de programación intensiva donde desarrollarás soluciones innovadoras.',
       image:
         'https://images.unsplash.com/photo-1515879218367-8466d910aaa4?q=80&w=1169&auto=format&fit=crop',
-      status: 'Próximo',
-      participants: '120+ registrados',
-      href: '#',
     },
   ]);
 
   const [userRole, setUserRole] = useState<UserRole | null>(null);
 
-  // ⬇️ Load current user role from /auth/me
   useEffect(() => {
     let cancelled = false;
 
@@ -150,12 +216,13 @@ export default function EventsSection() {
         });
 
         if (!res.ok) {
-          if (!cancelled) setUserRole(null); // not logged in or error → treat as basic user
+          if (!cancelled) setUserRole(null);
           return;
         }
 
         const data = await res.json();
         const role = data.user?.role as UserRole | undefined;
+
         if (!cancelled) {
           setUserRole(role ?? 'user');
         }
@@ -191,7 +258,7 @@ export default function EventsSection() {
 
         {/* Create Button — only for coach/admin */}
         {canCreate && (
-          <div className="flex justify-end mb-10">
+          <div className="mb-10 flex justify-end">
             <CreateEventButton
               userRole={userRole}
               onCreate={(newEvent) => setEvents((prev) => [newEvent, ...prev])}
@@ -201,8 +268,8 @@ export default function EventsSection() {
 
         {/* Grid */}
         <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
-          {events.map((e) => (
-            <EventCard key={e.id} e={e} />
+          {events.map((event) => (
+            <EventCard key={event.id} event={event} />
           ))}
         </div>
       </div>

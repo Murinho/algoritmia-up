@@ -110,3 +110,14 @@ export type Resource = {
   createdAt: string; // ISO string
   notes?: string;
 };
+
+export type EventItem = {
+  id: number;
+  title: string;
+  startsAt: string; // ISO
+  endsAt: string;   // ISO
+  location: string;
+  description: string;
+  image: string; // base64 or uploaded file URL
+  href?: string;
+};
