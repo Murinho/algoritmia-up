@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 
 import ContestCreateDialog from '@/components/ContestCreateDialog';
+import { useRouter } from 'next/navigation';
 import { API_BASE } from '@/lib/api';
 import type { Contest, UserRole } from '@/lib/types';
 
@@ -37,26 +38,34 @@ type SortKey = keyof Pick<
 type SortState = { key: SortKey; dir: 'asc' | 'desc' };
 
 export default function ContestsSection() {
+  const router = useRouter();
+
+  const [checkingAuth, setCheckingAuth] = useState(true);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<UserRole | null>(null);
+  const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/+$/, '') || '';
+
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<SortState>({ key: 'startsAt', dir: 'desc' });
   const [contests, setContests] = useState<Contest[]>([]);
   const [openCreate, setOpenCreate] = useState(false);
-  const [userRole, setUserRole] = useState<UserRole | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-
+  
   // Load current user's role
   useEffect(() => {
     let cancelled = false;
-
-    async function loadRole() {
+    (async () => {
       try {
         const res = await fetch(`${API_BASE}/auth/me`, {
+          method: 'GET',
           credentials: 'include',
         });
-
         if (!res.ok) {
-          if (!cancelled) setUserRole(null);
+          if (!cancelled) {
+            setAuthError('No hay sesión activa. Redirigiendo al login…');
+            setTimeout(() => router.replace('/login'), 1);
+          }
           return;
         }
 
@@ -66,15 +75,18 @@ export default function ContestsSection() {
           setUserRole(role ?? 'user');
         }
       } catch {
-        if (!cancelled) setUserRole(null);
+        if (!cancelled) {
+          setAuthError('No hay sesión activa. Redirigiendo al login…');
+          setTimeout(() => router.replace('/login'), 900);
+        }
+      } finally {
+        if (!cancelled) setCheckingAuth(false);
       }
-    }
-
-    loadRole();
+    })();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [API_BASE, router]);
 
   // Load contests from backend
   useEffect(() => {
@@ -194,6 +206,25 @@ export default function ContestsSection() {
   }
 
   const defaultSeason = 'Fall 2025';
+
+  if (checkingAuth) {
+    return (
+      <div className="grid min-h-[100svh] place-items-center bg-gradient-to-tr from-[#0D0D0D] via-[#2c1e28] to-[#C5133D]">
+        <div className="rounded-xl border border-white/15 bg-white/10 px-6 py-4 text-white/90 backdrop-blur">
+          Verificando sesión…
+        </div>
+      </div>
+    );
+  }
+  if (authError) {
+    return (
+      <div className="grid min-h-[100svh] place-items-center bg-gradient-to-tr from-[#0D0D0D] via-[#2c1e28] to-[#C5133D]">
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-6 py-4 text-amber-200 backdrop-blur">
+          {authError}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <section

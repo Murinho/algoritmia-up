@@ -68,6 +68,7 @@ export default function ResourcesSection() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
+  // Load current user's role
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -103,53 +104,53 @@ export default function ResourcesSection() {
     };
   }, [API_BASE, router]);
 
-  // Load contests from backend
-    useEffect(() => {
-      let cancelled = false;
-  
-      async function loadResources() {
-        setLoading(true);
-        setLoadError(null);
-  
-        try {
-          const res = await fetch(`${API_BASE}/resources`, {
-            credentials: 'include', // cookie if needed (even though list is public)
-          });
-  
-          if (!res.ok) {
-            const text = await res.text().catch(() => '');
-            console.error('Failed to load resources:', res.status, text);
-            if (!cancelled) {
-              setLoadError('No se pudieron cargar los recursos.');
-              setResources([]);
-            }
-            return;
-          }
-  
-          const json = await res.json();
-          const items = (json.items ?? []) as Resource[];
-  
+  // Load resources from backend
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadResources() {
+      setLoading(true);
+      setLoadError(null);
+
+      try {
+        const res = await fetch(`${API_BASE}/resources`, {
+          credentials: 'include', // cookie if needed (even though list is public)
+        });
+
+        if (!res.ok) {
+          const text = await res.text().catch(() => '');
+          console.error('Failed to load resources:', res.status, text);
           if (!cancelled) {
-            setResources(items);
-          }
-        } catch (err) {
-          console.error('Error fetching contests:', err);
-          if (!cancelled) {
-            setLoadError('Ocurrió un error al cargar los contests.');
+            setLoadError('No se pudieron cargar los recursos.');
             setResources([]);
           }
-        } finally {
-          if (!cancelled) {
-            setLoading(false);
-          }
+          return;
+        }
+
+        const json = await res.json();
+        const items = (json.items ?? []) as Resource[];
+
+        if (!cancelled) {
+          setResources(items);
+        }
+      } catch (err) {
+        console.error('Error fetching resources:', err);
+        if (!cancelled) {
+          setLoadError('Ocurrió un error al cargar los resources.');
+          setResources([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
         }
       }
-  
-      loadResources();
-      return () => {
-        cancelled = true;
-      };
-    }, []);
+    }
+
+    loadResources();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const canCreate = userRole === 'coach' || userRole === 'admin';
 
@@ -207,8 +208,8 @@ export default function ResourcesSection() {
     );
   }
 
-  function handleCreate(newResource: Resource) {
-    setResources((prev) => [newResource, ...prev]);
+  function handleCreate() {
+    setOpenCreate(false)
   }
 
   if (checkingAuth) {
@@ -389,7 +390,7 @@ export default function ResourcesSection() {
                 {!loading && data.length === 0 && (
                   <tr>
                     <td colSpan={10} className="px-4 py-10 text-center text-white/70">
-                      No se encontraron contests con “{query}”.
+                      No se encontraron recursos con “{query}”.
                     </td>
                   </tr>
                 )}
@@ -397,7 +398,7 @@ export default function ResourcesSection() {
                 {loading && (
                   <tr>
                     <td colSpan={10} className="px-4 py-10 text-center text-white/70">
-                      Cargando contests…
+                      Cargando recursos...
                     </td>
                   </tr>
                 )}
