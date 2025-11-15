@@ -29,6 +29,7 @@ def ensure_table(conn) -> None:
 
 def row_to_resource(row: dict) -> dict:
     """Normalize DB row → JSON shape expected by the frontend."""
+    created_at = row.get("created_at")
     return {
         "id": row["id"],
         "title": row["title"],
@@ -37,6 +38,9 @@ def row_to_resource(row: dict) -> dict:
         "tags": row["tags"] or [],
         "difficulty": row["difficulty"] or 3,  # default if NULL
         "notes": row["notes"] or "",
+        "addedBy": row.get("added_by_name") or row.get("added_by") or "",
+        # send ISO string to frontend
+        "createdAt": created_at.isoformat() if created_at is not None else None,
     }
 
 class ResourceCreate(BaseModel):
@@ -57,30 +61,55 @@ class ResourceUpdate(BaseModel):
 
 @router.get("")
 def list_resources(type: Optional[str] = None, difficulty: Optional[str] = None):
-    base = "SELECT * FROM resources"
+    base = """
+        SELECT
+            r.*,
+            u.full_name AS added_by_name
+        FROM resources r
+        LEFT JOIN users u ON r.added_by = u.id
+    """
     clauses = []
     params: list = []
+
     if type:
-        clauses.append("type=%s")
+        clauses.append("r.type = %s")
         params.append(type)
     if difficulty:
-        clauses.append("difficulty=%s")
+        clauses.append("r.difficulty = %s")
         params.append(difficulty)
+
     if clauses:
         base += " WHERE " + " AND ".join(clauses)
-    base += " ORDER BY created_at DESC LIMIT 200"
+
+    base += " ORDER BY r.created_at DESC LIMIT 200"
+
     with db.connect() as conn:
         rows = db.fetchall(conn, base, params)
-    return {"items": rows}
+
+    items = [row_to_resource(row) for row in rows]
+    return {"items": items}
+
 
 
 @router.get("/{resource_id}")
 def get_resource(resource_id: int):
     with db.connect() as conn:
-        row = db.fetchone(conn, "SELECT * FROM resources WHERE id=%s", [resource_id])
+        row = db.fetchone(
+            conn,
+            """
+            SELECT
+                r.*,
+                u.full_name AS added_by_name
+            FROM resources r
+            LEFT JOIN users u ON r.added_by = u.id
+            WHERE r.id = %s
+            """,
+            [resource_id],
+        )
     if not row:
         raise HTTPException(status_code=404, detail="Resource not found")
-    return row
+    return row_to_resource(row)
+
 
 
 @router.post("")
@@ -97,7 +126,8 @@ def create_resource(payload: ResourceCreate, auth=Depends(get_current_user)):
         raise HTTPException(status_code=403, detail="Only coaches/admins can create resources")
 
     with db.connect() as conn:
-        row = db.fetchone(
+        # first insert
+        inserted = db.fetchone(
             conn,
             """
             INSERT INTO resources(
@@ -105,7 +135,7 @@ def create_resource(payload: ResourceCreate, auth=Depends(get_current_user)):
                 added_by, notes
             )
             VALUES (%s,%s,%s,%s,%s,%s,%s)
-            RETURNING *
+            RETURNING id
             """,
             [
                 payload.title,
@@ -117,11 +147,27 @@ def create_resource(payload: ResourceCreate, auth=Depends(get_current_user)):
                 payload.notes,
             ],
         )
+
+        # then re-fetch with JOIN to get added_by_name
+        row = db.fetchone(
+            conn,
+            """
+            SELECT
+                r.*,
+                u.full_name AS added_by_name
+            FROM resources r
+            LEFT JOIN users u ON r.added_by = u.id
+            WHERE r.id = %s
+            """,
+            [inserted["id"]],
+        )
+
     return row_to_resource(row)
 
 
+
 @router.patch("/{resource_id}")
-def update_contest(resource_id: int, payload: ResourceUpdate, auth=Depends(get_current_user)):
+def update_resource(resource_id: int, payload: ResourceUpdate, auth=Depends(get_current_user)):
     user = auth["user"]
     role = user.get("role")
 
@@ -136,10 +182,28 @@ def update_contest(resource_id: int, payload: ResourceUpdate, auth=Depends(get_c
     params = list(data.values()) + [resource_id]
 
     with db.connect() as conn:
-        row = db.fetchone(conn, f"UPDATE resources SET {cols} WHERE id=%s RETURNING *", params)
+        updated = db.fetchone(
+            conn,
+            f"UPDATE resources SET {cols} WHERE id=%s RETURNING id",
+            params,
+        )
 
-    if not row:
-        raise HTTPException(status_code=404, detail="Resource not found")
+        if not updated:
+            raise HTTPException(status_code=404, detail="Resource not found")
+
+        row = db.fetchone(
+            conn,
+            """
+            SELECT
+                r.*,
+                u.full_name AS added_by_name
+            FROM resources r
+            LEFT JOIN users u ON r.added_by = u.id
+            WHERE r.id = %s
+            """,
+            [updated["id"]],
+        )
+
     return row_to_resource(row)
 
 

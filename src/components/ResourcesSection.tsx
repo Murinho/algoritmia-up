@@ -160,7 +160,7 @@ export default function ResourcesSection() {
       if (!q) return true;
       return (
         r.title.toLowerCase().includes(q) ||
-        r.addedBy.toLowerCase().includes(q) ||
+        (r.addedBy || '').toLowerCase().includes(q) ||
         r.tags.join(' ').toLowerCase().includes(q) ||
         r.type.toLowerCase().includes(q)
       );
