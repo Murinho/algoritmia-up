@@ -38,25 +38,21 @@ def create_app() -> FastAPI:
         "http://127.0.0.1:3000",
         "https://algoritmia-up.vercel.app",
     ]
-    # Comma-separated extra origins (exact matches)
     extra_origins_env = os.getenv("ALLOWED_ORIGINS", "").strip()
     extra_origins = [o.strip() for o in extra_origins_env.split(",") if o.strip()]
-
-    # Optional regex for hosts like Vercel previews:
     origin_regex = os.getenv("ALLOWED_ORIGIN_REGEX", "").strip() or None
 
-    allow_origins = list(dict.fromkeys(default_origins + extra_origins))  # merge & dedupe
+    allow_origins = list(dict.fromkeys(default_origins + extra_origins))
 
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=allow_origins,       # exact matches
-        allow_origin_regex=origin_regex,   # optional regex
-        allow_credentials=True,            # REQUIRED for cookies
+        allow_origins=allow_origins,
+        allow_origin_regex=origin_regex,
+        allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
 
-    # Serve avatars from local disk
     avatar_root = os.getenv("AVATAR_DIR", "uploads/avatars")
     os.makedirs(avatar_root, exist_ok=True)
 
@@ -64,6 +60,15 @@ def create_app() -> FastAPI:
         "/static/avatars",
         StaticFiles(directory=avatar_root),
         name="avatars",
+    )
+
+    event_banner_root = "uploads/event_banners"
+    os.makedirs(event_banner_root, exist_ok=True)
+
+    app.mount(
+        "/static/event_banners",
+        StaticFiles(directory=event_banner_root),
+        name="event_banners",
     )
 
     # Health/Version

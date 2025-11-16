@@ -1,14 +1,21 @@
+import uuid
+import shutil
+import os
+
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, UploadFile, File, Depends
 from pydantic import BaseModel
+from pathlib import Path
 
 from .. import db
-
+from .auth import get_current_user
 
 router = APIRouter(prefix="/events", tags=["Events"])
 
+EVENT_BANNER_DIR = Path("uploads/event_banners")
+EVENT_BANNER_DIR.mkdir(parents=True, exist_ok=True)
 
 DDL = """
 CREATE TABLE IF NOT EXISTS events (
@@ -19,8 +26,7 @@ CREATE TABLE IF NOT EXISTS events (
     location TEXT,
     description TEXT,
     image_url TEXT,
-    topic TEXT,
-    organizer TEXT,
+    video_call_link TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 """
@@ -39,8 +45,7 @@ class EventCreate(BaseModel):
     location: Optional[str] = None
     description: Optional[str] = None
     image_url: Optional[str] = None
-    topic: Optional[str] = None
-    organizer: Optional[str] = None
+    video_call_link: Optional[str] = None
 
 
 class EventUpdate(BaseModel):
@@ -50,8 +55,8 @@ class EventUpdate(BaseModel):
     location: Optional[str] = None
     description: Optional[str] = None
     image_url: Optional[str] = None
-    topic: Optional[str] = None
-    organizer: Optional[str] = None
+    video_call_link: Optional[str] = None
+
 
 
 @router.get("")
@@ -75,13 +80,30 @@ def get_event(event_id: int):
 
 
 @router.post("")
-def create_event(payload: EventCreate):
+def create_event(
+    payload: EventCreate,
+    current = Depends(get_current_user),
+):
+    user = current["user"]
+    role = user.get("role")
+
+    if role not in ("coach", "admin"):
+        raise HTTPException(status_code=403, detail="Solo coaches o admins pueden crear eventos.")
+
     with db.connect() as conn:
         row = db.fetchone(
             conn,
             """
-            INSERT INTO events(title, starts_at, ends_at, location, description, image_url, topic, organizer)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *
+            INSERT INTO events(
+                title,
+                starts_at,
+                ends_at,
+                location,
+                description,
+                image_url,
+                video_call_link
+            )
+            VALUES (%s,%s,%s,%s,%s,%s,%s) RETURNING *
             """,
             [
                 payload.title,
@@ -90,15 +112,50 @@ def create_event(payload: EventCreate):
                 payload.location,
                 payload.description,
                 payload.image_url,
-                payload.topic,
-                payload.organizer,
+                payload.video_call_link,
             ],
         )
     return row
 
 
+@router.post("/upload-banner")
+def upload_banner(
+    file: UploadFile = File(...),
+    current = Depends(get_current_user),
+):
+    user = current["user"]
+    role = user.get("role")
+
+    if role not in ("coach", "admin"):
+        raise HTTPException(status_code=403, detail="Solo coaches o admins pueden subir banners.")
+
+    if not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="El archivo debe ser una imagen.")
+
+    os.makedirs(EVENT_BANNER_DIR, exist_ok=True)
+
+    ext = file.filename.split(".")[-1].lower()
+    filename = f"{uuid.uuid4()}.{ext}"
+    save_path = os.path.join(EVENT_BANNER_DIR, filename)
+
+    with open(save_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    public_url = f"/static/event_banners/{filename}"
+    return {"url": public_url}
+
+
 @router.patch("/{event_id}")
-def update_event(event_id: int, payload: EventUpdate):
+def update_event(
+    event_id: int,
+    payload: EventUpdate,
+    current = Depends(get_current_user),
+):
+    user = current["user"]
+    role = user.get("role")
+    if role not in ("coach", "admin"):
+        raise HTTPException(status_code=403, detail="Solo coaches o admins pueden editar eventos.")
+
     data = payload.model_dump(exclude_unset=True)
     if not data:
         raise HTTPException(status_code=400, detail="No fields to update")
@@ -112,9 +169,18 @@ def update_event(event_id: int, payload: EventUpdate):
 
 
 @router.delete("/{event_id}")
-def delete_event(event_id: int):
+def delete_event(
+    event_id: int,
+    current = Depends(get_current_user),
+):
+    user = current["user"]
+    role = user.get("role")
+    if role not in ("coach", "admin"):
+        raise HTTPException(status_code=403, detail="Solo coaches o admins pueden borrar eventos.")
+
     with db.connect() as conn:
         count = db.execute(conn, "DELETE FROM events WHERE id=%s", [event_id])
     if count == 0:
         raise HTTPException(status_code=404, detail="Event not found")
     return {"deleted": True}
+
