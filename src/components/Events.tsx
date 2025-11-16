@@ -157,23 +157,72 @@ function EventCard({ event }: { event: EventItem }) {
   );
 }
 
+// Simple placeholder card for when there are fewer than 3 real events
+function PlaceholderCard() {
+  return (
+    <CardContainer className="flex flex-col justify-between">
+      <div className="relative h-48 w-full overflow-hidden bg-gradient-to-br from-gray-100 via-gray-50 to-gray-200" />
+      <div className="p-5">
+        <h3 className="mb-2 text-xl font-semibold text-gray-700">
+          Próximamente eventos de Algoritmia UP
+        </h3>
+        <p className="mb-4 text-sm leading-relaxed text-gray-600">
+          Algoritmia tendrá nuevos eventos en el futuro, ¡espéralos!
+        </p>
+        <p className="text-xs text-gray-400">
+          Sigue atento a nuestras redes y al sitio para conocer las próximas actividades.
+        </p>
+      </div>
+    </CardContainer>
+  );
+}
+
+// Shape of the backend row as returned by /events
+type EventRow = {
+  id: number;
+  title: string;
+  starts_at: string | null;
+  ends_at: string | null;
+  location: string | null;
+  description: string | null;
+  image_url: string | null;
+  video_call_link: string | null;
+  created_at: string;
+};
+
+function adaptEventRow(row: EventRow): EventItem {
+  const startsAt = row.starts_at ?? row.created_at;
+  const endsAt = row.ends_at ?? row.starts_at ?? row.created_at;
+
+  let image = row.image_url ?? '';
+  if (image && !image.startsWith('http')) {
+    const base = API_BASE.replace(/\/$/, '');
+    image = `${base}${image}`;
+  }
+  if (!image) {
+    image =
+      'https://images.unsplash.com/photo-1565687981296-535f09db714e?q=80&w=1170&auto=format&fit=crop';
+  }
+
+  return {
+    id: row.id,
+    title: row.title,
+    startsAt,
+    endsAt,
+    location: row.location ?? 'Por confirmar',
+    description: row.description ?? '',
+    image,
+    videoCallLink: row.video_call_link ?? undefined,
+  };
+}
+
 export default function EventsSection() {
-  const [events, setEvents] = useState<EventItem[]>([
-    {
-      id: 1,
-      title: 'Clase Inaugural Algoritmia UP',
-      startsAt: '2024-04-05T14:00:00',
-      endsAt: '2024-04-05T16:00:00',
-      location: 'Aula Byte C001',
-      description: 'Bienvenida oficial al semestre y dinámicas de integración.',
-      image:
-        'https://images.unsplash.com/photo-1565687981296-535f09db714e?q=80&w=1170&auto=format&fit=crop',
-      videoCallLink: undefined,
-    },
-  ]);
-
+  const [events, setEvents] = useState<EventItem[]>([]);
   const [userRole, setUserRole] = useState<UserRole | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
+  // Load role
   useEffect(() => {
     let cancelled = false;
 
@@ -202,7 +251,55 @@ export default function EventsSection() {
     };
   }, []);
 
+  // Load events from backend
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadEvents() {
+      setLoading(true);
+      setLoadError(null);
+      try {
+        const res = await fetch(`${API_BASE}/events?upcoming_only=true`, {
+          credentials: 'include',
+        });
+
+        if (!res.ok) {
+          throw new Error('No se pudieron cargar los eventos.');
+        }
+
+        const data = await res.json();
+        const rows = (data.items ?? []) as EventRow[];
+
+        if (!cancelled) {
+          const items = rows.map(adaptEventRow);
+
+          items.sort(
+            (a, b) =>
+              new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime(),
+          );
+
+          setEvents(items);
+        }
+      } catch (err) {
+        console.error(err);
+        if (!cancelled) {
+          setLoadError('No se pudieron cargar los eventos.');
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    loadEvents();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const canCreate = userRole === 'coach' || userRole === 'admin';
+
+  const earliestThree = events.slice(0, 3);
+  const placeholderCount = Math.max(0, 3 - earliestThree.length);
 
   return (
     <section id="events" className="bg-gray-50 py-20">
@@ -221,16 +318,40 @@ export default function EventsSection() {
           <div className="mb-10 flex justify-end">
             <CreateEventButton
               userRole={userRole}
-              onCreate={(newEvent) => setEvents((prev) => [newEvent, ...prev])}
+              onCreate={(newEvent) =>
+                setEvents((prev) => {
+                  const next = [...prev, newEvent];
+                  next.sort(
+                    (a, b) =>
+                      new Date(a.startsAt).getTime() -
+                      new Date(b.startsAt).getTime(),
+                  );
+                  return next;
+                })
+              }
             />
           </div>
         )}
 
-        <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
-          {events.map((event) => (
-            <EventCard key={event.id} event={event} />
-          ))}
-        </div>
+        {loading && (
+          <p className="text-center text-gray-500">Cargando eventos…</p>
+        )}
+
+        {loadError && !loading && (
+          <p className="text-center text-sm text-red-500">{loadError}</p>
+        )}
+
+        {!loading && !loadError && (
+          <div className="mt-6 grid gap-8 md:grid-cols-2 lg:grid-cols-3">
+            {earliestThree.map((event) => (
+              <EventCard key={event.id} event={event} />
+            ))}
+
+            {Array.from({ length: placeholderCount }).map((_, idx) => (
+              <PlaceholderCard key={`placeholder-${idx}`} />
+            ))}
+          </div>
+        )}
       </div>
     </section>
   );

@@ -5,7 +5,13 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       { protocol: 'https', hostname: 'images.unsplash.com' },
       { protocol: 'https', hostname: 'plus.unsplash.com' },
-      { protocol: 'https', hostname: 'flagcdn.com'}
+      { protocol: 'https', hostname: 'flagcdn.com'},
+      {
+        protocol: 'http',
+        hostname: 'localhost',
+        port: '8000',
+        pathname: '/static/event_banners/**',
+      },
     ],
     formats: ['image/avif', 'image/webp'],
   },

@@ -3,7 +3,7 @@
 import { Plus } from 'lucide-react';
 import { useState } from 'react';
 import EventCreateDialog from './EventCreateDialog';
-import type { EventItem } from './EventCreateDialog';
+import type { EventItem } from '@/lib/types';
 
 type UserRole = 'user' | 'coach' | 'admin';
 

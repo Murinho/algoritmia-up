@@ -12,16 +12,14 @@ import {
   Upload,
 } from 'lucide-react';
 import type { EventItem } from '@/lib/types';
+import { createEvent, uploadEventBanner } from '@/lib/events';
+import { HttpError } from '@/lib/api';
 
 type Props = {
   open: boolean;
   onClose: () => void;
   onCreate: (event: EventItem) => void;
 };
-
-function genId() {
-  return Date.now();
-}
 
 function Field({
   label,
@@ -47,8 +45,8 @@ function ImageUploader({
   value,
   onChange,
 }: {
-  value?: string;
-  onChange: (v: string) => void;
+  value?: File | null;
+  onChange: (v: File) => void;
 }) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -62,9 +60,7 @@ function ImageUploader({
     }
 
     setError(null);
-    const reader = new FileReader();
-    reader.onloadend = () => onChange(reader.result as string);
-    reader.readAsDataURL(file);
+    onChange(file);
   }
 
   return (
@@ -87,7 +83,7 @@ function ImageUploader({
       {value && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={value}
+          src={URL.createObjectURL(value)}
           alt="Vista previa"
           className="mt-2 max-h-48 w-full rounded-xl border border-white/10 object-cover"
         />
@@ -104,7 +100,7 @@ export default function EventCreateDialog({ open, onClose, onCreate }: Props) {
   const [endsAtLocal, setEndsAtLocal] = useState('');
   const [location, setLocation] = useState('');
   const [description, setDescription] = useState('');
-  const [image, setImage] = useState('');
+  const [imageFile, setImageFile] = useState<File | null>(null);
   const [videoCallLink, setVideoCallLink] = useState('');
 
   const [error, setError] = useState<string | null>(null);
@@ -123,7 +119,7 @@ export default function EventCreateDialog({ open, onClose, onCreate }: Props) {
     setEndsAtLocal('');
     setLocation('');
     setDescription('');
-    setImage('');
+    setImageFile(null);
     setVideoCallLink('');
     setError(null);
   }
@@ -141,7 +137,7 @@ export default function EventCreateDialog({ open, onClose, onCreate }: Props) {
 
     if (!location.trim()) return 'La ubicación es obligatoria.';
     if (!description.trim()) return 'La descripción es obligatoria.';
-    if (!image) return 'Debes subir una imagen para el evento.';
+    if (!imageFile) return 'Debes subir una imagen para el evento.';
 
     const link = videoCallLink.trim();
     if (link) {
@@ -155,7 +151,7 @@ export default function EventCreateDialog({ open, onClose, onCreate }: Props) {
     return null;
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const v = validate();
     if (v) {
@@ -163,22 +159,51 @@ export default function EventCreateDialog({ open, onClose, onCreate }: Props) {
       return;
     }
 
+    if (!imageFile) {
+      setError('Debes subir una imagen para el evento.');
+      return;
+    }
+
     setSubmitting(true);
     try {
-      const event: EventItem = {
-        id: genId(),
+      // 1) Subir banner a /events/upload-banner
+      const imageUrl = await uploadEventBanner(imageFile);
+
+      // 2) Crear el evento en la API
+      const created = await createEvent({
         title: title.trim(),
-        startsAt: new Date(startsAtLocal).toISOString(),
-        endsAt: new Date(endsAtLocal).toISOString(),
+        starts_at: new Date(startsAtLocal).toISOString(),
+        ends_at: new Date(endsAtLocal).toISOString(),
         location: location.trim(),
         description: description.trim(),
-        image,
-        videoCallLink: videoCallLink.trim() || undefined,
+        image_url: imageUrl,
+        video_call_link: videoCallLink.trim() || undefined,
+      });
+
+      // 3) Adaptar fila de DB → EventItem para el frontend
+      const event: EventItem = {
+        id: created.id,
+        title: created.title,
+        startsAt: created.starts_at ?? new Date(startsAtLocal).toISOString(),
+        endsAt: created.ends_at ?? new Date(endsAtLocal).toISOString(),
+        location: created.location ?? '',
+        description: created.description ?? '',
+        image: created.image_url ?? '',
+        videoCallLink: created.video_call_link ?? undefined,
       };
 
       onCreate(event);
       resetForm();
       onClose();
+    } catch (err) {
+      console.error(err);
+      if (err instanceof HttpError) {
+        setError(err.message);
+      } else if (err instanceof Error) {
+        setError(err.message || 'Ocurrió un error al crear el evento.');
+      } else {
+        setError('Ocurrió un error al crear el evento.');
+      }
     } finally {
       setSubmitting(false);
     }
@@ -281,7 +306,7 @@ export default function EventCreateDialog({ open, onClose, onCreate }: Props) {
           </Field>
 
           <Field label="Imagen del evento" hint="Sube una imagen en formato JPG o PNG">
-            <ImageUploader value={image} onChange={setImage} />
+            <ImageUploader value={imageFile} onChange={setImageFile} />
           </Field>
 
           <Field
