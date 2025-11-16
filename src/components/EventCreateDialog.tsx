@@ -18,7 +18,6 @@ import { HttpError } from '@/lib/api';
 type Props = {
   open: boolean;
   onClose: () => void;
-  onCreate: (event: EventItem) => void;
 };
 
 function Field({
@@ -92,7 +91,7 @@ function ImageUploader({
   );
 }
 
-export default function EventCreateDialog({ open, onClose, onCreate }: Props) {
+export default function EventCreateDialog({ open, onClose }: Props) {
   const initialRef = useRef<HTMLInputElement | null>(null);
 
   const [title, setTitle] = useState('');
@@ -192,7 +191,6 @@ export default function EventCreateDialog({ open, onClose, onCreate }: Props) {
         videoCallLink: created.video_call_link ?? undefined,
       };
 
-      onCreate(event);
       resetForm();
       onClose();
     } catch (err) {

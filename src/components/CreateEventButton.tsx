@@ -9,10 +9,9 @@ type UserRole = 'user' | 'coach' | 'admin';
 
 type Props = {
   userRole: UserRole;
-  onCreate: (event: EventItem) => void;
 };
 
-export default function CreateEventButton({ userRole, onCreate }: Props) {
+export default function CreateEventButton({ userRole }: Props) {
   const [openCreate, setOpenCreate] = useState(false);
 
   // Only allow for coaches or admins
@@ -31,10 +30,6 @@ export default function CreateEventButton({ userRole, onCreate }: Props) {
       <EventCreateDialog
         open={openCreate}
         onClose={() => setOpenCreate(false)}
-        onCreate={(ev) => {
-          onCreate(ev);
-          setOpenCreate(false);
-        }}
       />
     </>
   );

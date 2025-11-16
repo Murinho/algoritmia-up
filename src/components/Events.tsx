@@ -89,8 +89,62 @@ function buildGoogleCalendarUrl(event: EventItem) {
   return `${base}?${params.toString()}`;
 }
 
+// ---- Status label logic ----
+
+type EventStatus = 'Ahora' | 'Hoy' | 'Próximamente';
+
+function getEventStatus(event: EventItem): EventStatus {
+  const now = new Date();
+  const start = parseIso(event.startsAt);
+  const end = parseIso(event.endsAt);
+
+  if (!start || !end) return 'Próximamente';
+
+  const sameDay =
+    start.getFullYear() === now.getFullYear() &&
+    start.getMonth() === now.getMonth() &&
+    start.getDate() === now.getDate();
+
+  if (sameDay && now >= start && now <= end) {
+    return 'Ahora';
+  }
+
+  if (sameDay) {
+    return 'Hoy';
+  }
+
+  return 'Próximamente';
+}
+
+function statusClasses(status: EventStatus): string {
+  switch (status) {
+    case 'Ahora': // GREEN
+      return (
+        'bg-green-200 text-green-800 ' +       // lighter fill + readable text
+        'border border-green-600/40 ' +        // darker outline
+        'shadow-sm'
+      );
+
+    case 'Hoy': // YELLOW
+      return (
+        'bg-yellow-200 text-yellow-800 ' +
+        'border border-yellow-600/40 ' +
+        'shadow-sm'
+      );
+
+    case 'Próximamente': // RED
+    default:
+      return (
+        'bg-red-200 text-red-800 ' +
+        'border border-red-700/40 ' +
+        'shadow-sm'
+      );
+  }
+}
+
 function EventCard({ event }: { event: EventItem }) {
   const calendarUrl = buildGoogleCalendarUrl(event);
+  const status = getEventStatus(event);
 
   return (
     <CardContainer className="group">
@@ -103,6 +157,15 @@ function EventCard({ event }: { event: EventItem }) {
           className="object-cover transition-transform duration-300 group-hover:scale-105"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+
+        {/* Status label in top-right corner */}
+        <span
+          className={`absolute right-3 top-3 rounded-full px-3 py-1 text-xs font-semibold shadow-md ${statusClasses(
+            status,
+          )}`}
+        >
+          {status}
+        </span>
       </div>
 
       <div className="p-5">
@@ -273,6 +336,7 @@ export default function EventsSection() {
         if (!cancelled) {
           const items = rows.map(adaptEventRow);
 
+          // sort by earliest upcoming (ascending by startsAt)
           items.sort(
             (a, b) =>
               new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime(),
@@ -298,6 +362,7 @@ export default function EventsSection() {
 
   const canCreate = userRole === 'coach' || userRole === 'admin';
 
+  // Keep only the earliest 3 events
   const earliestThree = events.slice(0, 3);
   const placeholderCount = Math.max(0, 3 - earliestThree.length);
 
@@ -318,17 +383,6 @@ export default function EventsSection() {
           <div className="mb-10 flex justify-end">
             <CreateEventButton
               userRole={userRole}
-              onCreate={(newEvent) =>
-                setEvents((prev) => {
-                  const next = [...prev, newEvent];
-                  next.sort(
-                    (a, b) =>
-                      new Date(a.startsAt).getTime() -
-                      new Date(b.startsAt).getTime(),
-                  );
-                  return next;
-                })
-              }
             />
           </div>
         )}
