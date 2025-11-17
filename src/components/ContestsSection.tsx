@@ -12,6 +12,7 @@ import {
   ChevronDown,
   Trophy,
   Plus,
+  Pencil,
 } from 'lucide-react';
 
 import ContestCreateDialog from '@/components/ContestCreateDialog';
@@ -454,8 +455,9 @@ export default function ContestsSection() {
                               setEditingContest(c);
                               setOpenUpdate(true);
                             }}
-                            className="inline-flex items-center justify-center rounded-lg border border-white/15 bg-black/30 px-3 py-1 text-xs text-white hover:bg-white/10 transition"
+                            className="inline-flex items-center gap-1 rounded-lg border border-white/15 bg-black/30 px-3 py-1.5 text-xs font-medium text-white/90 hover:bg-white/10 transition"
                           >
+                            <Pencil className="h-3.5 w-3.5" />
                             Editar
                           </button>
                         ) : (
