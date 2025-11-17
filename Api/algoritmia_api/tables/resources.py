@@ -175,6 +175,9 @@ def update_resource(resource_id: int, payload: ResourceUpdate, auth=Depends(get_
         raise HTTPException(status_code=403, detail="Only coaches/admins can update resources")
 
     data = payload.model_dump(exclude_unset=True)
+    if "url" in data and data["url"] is not None:
+        data["url"] = str(data["url"])
+        
     if not data:
         raise HTTPException(status_code=400, detail="No fields to update")
 

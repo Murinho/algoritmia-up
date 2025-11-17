@@ -19,9 +19,11 @@ import {
   FolderGit2,
   NewspaperIcon,
   BringToFrontIcon,
+  Pencil,
 } from 'lucide-react';
 
 import ResourceCreateDialog from '@/components/ResourceCreateDialog';
+import ResourceUpdateDialog from '@/components/ResourceUpdateDialog';
 import type { Resource, ResourceType, UserRole } from '@/lib/types';
 
 const TYPE_ICON: Record<ResourceType, JSX.Element> = {
@@ -67,6 +69,10 @@ export default function ResourcesSection() {
   const [openCreate, setOpenCreate] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+
+  // For update dialog
+  const [editingResource, setEditingResource] = useState<Resource | null>(null);
+  const [openUpdate, setOpenUpdate] = useState(false);
 
   // Load current user's role
   useEffect(() => {
@@ -114,7 +120,7 @@ export default function ResourcesSection() {
 
       try {
         const res = await fetch(`${API_BASE}/resources`, {
-          credentials: 'include', // cookie if needed (even though list is public)
+          credentials: 'include',
         });
 
         if (!res.ok) {
@@ -150,9 +156,10 @@ export default function ResourcesSection() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [API_BASE]);
 
-  const canCreate = userRole === 'coach' || userRole === 'admin';
+  const canManage = userRole === 'coach' || userRole === 'admin';
+  const canCreate = canManage;
 
   const data = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -203,13 +210,31 @@ export default function ResourcesSection() {
         aria-label={`Ordenar por ${label}`}
       >
         {label}
-        {active ? (sort.dir === 'asc' ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />) : null}
+        {active ? (
+          sort.dir === 'asc' ? (
+            <ChevronUp className="h-4 w-4" />
+          ) : (
+            <ChevronDown className="h-4 w-4" />
+          )
+        ) : null}
       </button>
     );
   }
 
-  function handleCreate() {
-    setOpenCreate(false)
+  // Called when a resource was created in the dialog
+  function handleCreate(newResource: Resource) {
+    setResources((prev) => [newResource, ...prev]);
+    setOpenCreate(false);
+  }
+
+  // Called when a resource was updated in the update dialog
+  function handleUpdate(updated: Resource) {
+    setResources((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+  }
+
+  // Called when a resource was deleted in the update dialog
+  function handleDelete(id: string) {
+    setResources((prev) => prev.filter((r) => r.id !== id));
   }
 
   if (checkingAuth) {
@@ -286,11 +311,7 @@ export default function ResourcesSection() {
             </div>
           </div>
 
-          {loadError && (
-            <div className="px-4 pb-2 text-xs text-red-200">
-              {loadError}
-            </div>
-          )}
+          {loadError && <div className="px-4 pb-2 text-xs text-red-200">{loadError}</div>}
 
           <div className="overflow-x-auto">
             <table className="min-w-[900px] w-full text-left text-sm text-white/90">
@@ -303,7 +324,7 @@ export default function ResourcesSection() {
                     <SortButton k="title" label="Título" />
                   </th>
                   <th className="px-4 py-3 min-w-[200px]">URL</th>
-                  <th className="px-4 py-3 min-w-[200px]">Temas</th>
+                  <th className="px-4 py-3 min-w-[200px]">Tags</th>
                   <th className="px-4 py-3 w-32">
                     <SortButton k="difficulty" label="Dificultad" />
                   </th>
@@ -314,6 +335,9 @@ export default function ResourcesSection() {
                     <SortButton k="createdAt" label="Creado el" />
                   </th>
                   <th className="px-4 py-3 min-w-[220px]">Notas</th>
+                  {canManage && (
+                    <th className="px-4 py-3 w-32 text-center">Acciones</th>
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -384,12 +408,28 @@ export default function ResourcesSection() {
                         {r.notes ? r.notes : <span className="text-white/50">—</span>}
                       </span>
                     </td>
+
+                    {canManage && (
+                      <td className="px-4 py-3 text-center">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingResource(r);
+                            setOpenUpdate(true);
+                          }}
+                          className="inline-flex items-center gap-1 rounded-lg border border-white/15 bg-black/30 px-3 py-1.5 text-xs font-medium text-white/90 hover:bg-white/10 transition"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                          Editar
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 ))}
 
                 {!loading && data.length === 0 && (
                   <tr>
-                    <td colSpan={10} className="px-4 py-10 text-center text-white/70">
+                    <td colSpan={canManage ? 9 : 8} className="px-4 py-10 text-center text-white/70">
                       No se encontraron recursos con “{query}”.
                     </td>
                   </tr>
@@ -397,7 +437,7 @@ export default function ResourcesSection() {
 
                 {loading && (
                   <tr>
-                    <td colSpan={10} className="px-4 py-10 text-center text-white/70">
+                    <td colSpan={canManage ? 9 : 8} className="px-4 py-10 text-center text-white/70">
                       Cargando recursos...
                     </td>
                   </tr>
@@ -417,6 +457,19 @@ export default function ResourcesSection() {
         onClose={() => setOpenCreate(false)}
         onCreate={handleCreate}
       />
+
+      {canManage && (
+        <ResourceUpdateDialog
+          open={openUpdate}
+          onClose={() => {
+            setOpenUpdate(false);
+            setEditingResource(null);
+          }}
+          resource={editingResource}
+          onUpdate={handleUpdate}
+          onDelete={handleDelete}
+        />
+      )}
     </section>
   );
 }

@@ -1,5 +1,6 @@
 import { postJSON } from './api';
 import type { ResourceType, Difficulty, Resource } from './types';
+import { API_BASE, HttpError } from '@/lib/api';
 
 export type CreateResourcePayload = {
   type: ResourceType;
@@ -39,4 +40,58 @@ function toUiResource(row: ApiResourceRow): Resource {
 export async function createResource(payload: CreateResourcePayload): Promise<Resource> {
   const row = await postJSON<ApiResourceRow>('/resources', payload);
   return toUiResource(row);
+}
+
+export async function updateResource(
+  resourceId: string,
+  data: {
+    title?: string;
+    type ?: string;
+    url?: string;
+    tags?: string[];
+    difficulty?: Difficulty;
+    notes?: string;
+  }
+): Promise<Resource> {
+  const res = await fetch(`${API_BASE}/resources/${resourceId}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    credentials: 'include', // required for session cookie
+    body: JSON.stringify(data),
+  });
+
+  if (!res.ok) {
+    let detail = 'No se pudo actualizar el recurso.';
+    try {
+      const json = await res.json();
+      if (json?.detail) detail = json.detail;
+    } catch {
+      // ignore JSON parse errors
+    }
+    throw new HttpError(res.status, detail);
+  }
+
+  return res.json();
+}
+
+export async function deleteResource(resourceId: string): Promise<{ deleted: boolean }> {
+  const res = await fetch(`${API_BASE}/resources/${resourceId}`, {
+    method: 'DELETE',
+    credentials: 'include',
+  });
+
+  if (!res.ok) {
+    let detail = 'No se pudo eliminar el recurso.';
+    try {
+      const json = await res.json();
+      if (json?.detail) detail = json.detail;
+    } catch {
+      // ignore JSON parse errors
+    }
+    throw new HttpError(res.status, detail);
+  }
+
+  return res.json(); // e.g. { deleted: true }
 }
