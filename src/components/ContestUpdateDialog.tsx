@@ -220,7 +220,7 @@ export default function ContestUpdateDialog({
       setEndsAtLocal(isoToLocalInput(contest.endsAt as unknown as string));
       setLocation(contest.location ?? '');
       setSeason(contest.season ?? '');
-      setNotes((contest as any).notes ?? '');
+      setNotes(contest.notes ?? '');
       setError(null);
 
       setTimeout(() => initialFocusRef.current?.focus(), 20);
