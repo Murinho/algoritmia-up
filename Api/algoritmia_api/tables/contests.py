@@ -171,6 +171,10 @@ def update_contest(contest_id: int, payload: ContestUpdate, auth=Depends(get_cur
         raise HTTPException(status_code=403, detail="Only coaches/admins can update contests")
 
     data = payload.model_dump(exclude_unset=True)
+
+    if "url" in data and data["url"] is not None:
+        data["url"] = str(data["url"])
+
     if not data:
         raise HTTPException(status_code=400, detail="No fields to update")
 

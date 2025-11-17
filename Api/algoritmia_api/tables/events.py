@@ -159,6 +159,11 @@ def update_event(
     data = payload.model_dump(exclude_unset=True)
     if not data:
         raise HTTPException(status_code=400, detail="No fields to update")
+    
+    if "starts_at" in data and "ends_at" in data:
+        if data["starts_at"] >= data["ends_at"]:
+            raise HTTPException(status_code=400, detail="starts_at must be before ends_at")
+
     cols = ", ".join(f"{k}=%s" for k in data.keys())
     params = list(data.values()) + [event_id]
     with db.connect() as conn:

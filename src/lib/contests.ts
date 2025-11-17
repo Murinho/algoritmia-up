@@ -1,4 +1,5 @@
 import { postJSON } from './api';
+import { API_BASE, HttpError } from '@/lib/api';
 import type { Platform, ContestFormat, Difficulty, Contest } from './types';
 
 export type CreateContestPayload = {
@@ -50,4 +51,63 @@ function toUiContest(row: ApiContestRow): Contest {
 export async function createContest(payload: CreateContestPayload): Promise<Contest> {
   const row = await postJSON<ApiContestRow>('/contests', payload);
   return toUiContest(row);
+}
+
+export async function updateContest(
+  contestId: string,
+  data: {
+    title?: string;
+    platform?: Platform;
+    url?: string;
+    tags?: string[];
+    difficulty?: Difficulty;
+    format?: ContestFormat;
+    start_at?: string; // ISO
+    end_at?: string;   // ISO
+    location?: string;
+    season?: string;
+    notes?: string;
+  }
+): Promise<Contest> {
+  const res = await fetch(`${API_BASE}/contests/${contestId}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    credentials: 'include', // required for session cookie
+    body: JSON.stringify(data),
+  });
+
+  if (!res.ok) {
+    let detail = 'No se pudo actualizar el concurso.';
+    try {
+      const json = await res.json();
+      if (json?.detail) detail = json.detail;
+    } catch {
+      // ignore JSON parse errors
+    }
+    throw new HttpError(res.status, detail);
+  }
+
+  return res.json();
+}
+
+export async function deleteContest(contestId: string): Promise<{ deleted: boolean }> {
+  const res = await fetch(`${API_BASE}/contests/${contestId}`, {
+    method: 'DELETE',
+    credentials: 'include',
+  });
+
+  if (!res.ok) {
+    let detail = 'No se pudo eliminar el concurso.';
+    try {
+      const json = await res.json();
+      if (json?.detail) detail = json.detail;
+    } catch {
+      // ignore JSON parse errors
+    }
+    throw new HttpError(res.status, detail);
+  }
+
+  return res.json(); // e.g. { deleted: true }
 }
