@@ -59,3 +59,60 @@ export async function createEvent(payload: EventCreatePayload): Promise<EventRow
 
   return (await res.json()) as EventRow;
 }
+
+// ----------------------------
+// Update an event (PATCH)
+// ----------------------------
+export async function updateEvent(
+  eventId: string,
+  data: {
+    title?: string;
+    starts_at?: string;
+    ends_at?: string;
+    location?: string;
+    description?: string;
+    image_url?: string;
+    video_call_link?: string | undefined;
+  }
+) {
+  const res = await fetch(`${API_BASE}/events/${eventId}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    credentials: "include", // required for session cookie
+    body: JSON.stringify(data),
+  });
+
+  if (!res.ok) {
+    let detail = 'No se pudo actualizar el evento.';
+    try {
+      const data = await res.json();
+      if (data?.detail) detail = data.detail;
+    } catch {}
+    throw new HttpError(res.status, detail);
+  }
+
+  return res.json();
+}
+
+// ----------------------------
+// Delete an event (DELETE)
+// ----------------------------
+export async function deleteEvent(eventId: string) {
+  const res = await fetch(`${API_BASE}/events/${eventId}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+
+  if (!res.ok) {
+    let detail = 'No se pudo eliminar el evento.';
+    try {
+      const data = await res.json();
+      if (data?.detail) detail = data.detail;
+    } catch {}
+    throw new HttpError(res.status, detail);
+  }
+
+  return res.json(); // { deleted: true }
+}
