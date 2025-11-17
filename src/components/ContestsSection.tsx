@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 
 import ContestCreateDialog from '@/components/ContestCreateDialog';
+import ContestUpdateDialog from '@/components/ContestUpdateDialog';
 import { useRouter } from 'next/navigation';
 import { API_BASE } from '@/lib/api';
 import type { Contest, UserRole } from '@/lib/types';
@@ -43,21 +44,26 @@ export default function ContestsSection() {
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<UserRole | null>(null);
-  const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/+$/, '') || '';
+  const API_BASE_LOCAL =
+    process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/+$/, '') || API_BASE || '';
 
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<SortState>({ key: 'startsAt', dir: 'desc' });
   const [contests, setContests] = useState<Contest[]>([]);
   const [openCreate, setOpenCreate] = useState(false);
+
+  const [openUpdate, setOpenUpdate] = useState(false);
+  const [editingContest, setEditingContest] = useState<Contest | null>(null);
+
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  
+
   // Load current user's role
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(`${API_BASE}/auth/me`, {
+        const res = await fetch(`${API_BASE_LOCAL}/auth/me`, {
           method: 'GET',
           credentials: 'include',
         });
@@ -86,7 +92,7 @@ export default function ContestsSection() {
     return () => {
       cancelled = true;
     };
-  }, [API_BASE, router]);
+  }, [API_BASE_LOCAL, router]);
 
   // Load contests from backend
   useEffect(() => {
@@ -97,7 +103,7 @@ export default function ContestsSection() {
       setLoadError(null);
 
       try {
-        const res = await fetch(`${API_BASE}/contests`, {
+        const res = await fetch(`${API_BASE_LOCAL}/contests`, {
           credentials: 'include', // cookie if needed (even though list is public)
         });
 
@@ -134,9 +140,10 @@ export default function ContestsSection() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [API_BASE_LOCAL]);
 
   const canCreate = userRole === 'coach' || userRole === 'admin';
+  const canEdit = canCreate; // same roles for now
 
   const data = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -159,7 +166,10 @@ export default function ContestsSection() {
           return (a.difficulty - b.difficulty) * dir;
         case 'startsAt':
         case 'endsAt':
-          return (new Date(a[sort.key]).getTime() - new Date(b[sort.key]).getTime()) * dir;
+          return (
+            (new Date(a[sort.key] as unknown as string).getTime() -
+              new Date(b[sort.key] as unknown as string).getTime()) * dir
+          );
         default: {
           const av = String(a[sort.key] ?? '').toLowerCase();
           const bv = String(b[sort.key] ?? '').toLowerCase();
@@ -202,6 +212,8 @@ export default function ContestsSection() {
   }
 
   function handleCreate() {
+    // You probably re-fetch contests after creating from elsewhere,
+    // so here we just close the dialog.
     setOpenCreate(false);
   }
 
@@ -290,7 +302,7 @@ export default function ContestsSection() {
           )}
 
           <div className="overflow-x-auto">
-            <table className="min-w-[1100px] w-full text-left text-sm text-white/90">
+            <table className="min-w-[1150px] w-full text-left text-sm text-white/90">
               <thead>
                 <tr className="border-y border-white/10 bg-white/5 text-white">
                   <th className="px-4 py-3 min-w-[280px]">
@@ -320,6 +332,7 @@ export default function ContestsSection() {
                     <SortButton k="season" label="Temporada" />
                   </th>
                   <th className="px-4 py-3 min-w-[220px]">Notas</th>
+                  <th className="px-4 py-3 w-28 text-center">Acciones</th>
                 </tr>
               </thead>
 
@@ -381,14 +394,14 @@ export default function ContestsSection() {
                       <td className="px-4 py-3">
                         <time
                           className="inline-flex items-center gap-1 text-white/80"
-                          dateTime={c.startsAt}
-                          title={new Date(c.startsAt).toLocaleString()}
+                          dateTime={c.startsAt as unknown as string}
+                          title={new Date(c.startsAt as unknown as string).toLocaleString()}
                         >
                           <Calendar className="h-4 w-4" />
-                          {new Date(c.startsAt).toLocaleDateString()}
+                          {new Date(c.startsAt as unknown as string).toLocaleDateString()}
                           <span className="inline-flex items-center gap-1">
                             <Clock className="ml-1 h-4 w-4" />
-                            {new Date(c.startsAt).toLocaleTimeString([], {
+                            {new Date(c.startsAt as unknown as string).toLocaleTimeString([], {
                               hour: '2-digit',
                               minute: '2-digit',
                             })}
@@ -399,14 +412,14 @@ export default function ContestsSection() {
                       <td className="px-4 py-3">
                         <time
                           className="inline-flex items-center gap-1 text-white/80"
-                          dateTime={c.endsAt}
-                          title={new Date(c.endsAt).toLocaleString()}
+                          dateTime={c.endsAt as unknown as string}
+                          title={new Date(c.endsAt as unknown as string).toLocaleString()}
                         >
                           <Calendar className="h-4 w-4" />
-                          {new Date(c.endsAt).toLocaleDateString()}
+                          {new Date(c.endsAt as unknown as string).toLocaleDateString()}
                           <span className="inline-flex items-center gap-1">
                             <Clock className="ml-1 h-4 w-4" />
-                            {new Date(c.endsAt).toLocaleTimeString([], {
+                            {new Date(c.endsAt as unknown as string).toLocaleTimeString([], {
                               hour: '2-digit',
                               minute: '2-digit',
                             })}
@@ -432,12 +445,29 @@ export default function ContestsSection() {
                           {c.notes ? c.notes : <span className="text-white/50">—</span>}
                         </span>
                       </td>
+
+                      <td className="px-4 py-3 text-center">
+                        {canEdit ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingContest(c);
+                              setOpenUpdate(true);
+                            }}
+                            className="inline-flex items-center justify-center rounded-lg border border-white/15 bg-black/30 px-3 py-1 text-xs text-white hover:bg-white/10 transition"
+                          >
+                            Editar
+                          </button>
+                        ) : (
+                          <span className="text-white/40 text-xs">—</span>
+                        )}
+                      </td>
                     </tr>
                   ))}
 
                 {!loading && data.length === 0 && (
                   <tr>
-                    <td colSpan={10} className="px-4 py-10 text-center text-white/70">
+                    <td colSpan={11} className="px-4 py-10 text-center text-white/70">
                       No se encontraron contests con “{query}”.
                     </td>
                   </tr>
@@ -445,7 +475,7 @@ export default function ContestsSection() {
 
                 {loading && (
                   <tr>
-                    <td colSpan={10} className="px-4 py-10 text-center text-white/70">
+                    <td colSpan={11} className="px-4 py-10 text-center text-white/70">
                       Cargando contests…
                     </td>
                   </tr>
@@ -465,6 +495,22 @@ export default function ContestsSection() {
         onClose={() => setOpenCreate(false)}
         onCreate={handleCreate}
         defaultSeason={defaultSeason}
+      />
+
+      <ContestUpdateDialog
+        open={openUpdate}
+        contest={editingContest}
+        onClose={() => setOpenUpdate(false)}
+        onUpdated={(updated) => {
+          setContests((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+          setOpenUpdate(false);
+          setEditingContest(null);
+        }}
+        onDeleted={(id) => {
+          setContests((prev) => prev.filter((c) => c.id !== id));
+          setOpenUpdate(false);
+          setEditingContest(null);
+        }}
       />
     </section>
   );
