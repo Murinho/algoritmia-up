@@ -2,9 +2,10 @@
 
 import Image from 'next/image';
 import { useEffect, useState } from 'react';
-import { Calendar, MapPin, Clock, ArrowRight, Video } from 'lucide-react';
+import { Calendar, MapPin, Clock, ArrowRight, Video, MoreVertical } from 'lucide-react';
 
 import CreateEventButton from './CreateEventButton';
+import EventUpdateDialog from './EventUpdateDialog'; // ⬅️ make sure this path is correct
 import type { EventItem, UserRole } from '@/lib/types';
 import { API_BASE } from '@/lib/api';
 
@@ -120,8 +121,8 @@ function statusClasses(status: EventStatus): string {
   switch (status) {
     case 'Ahora': // GREEN
       return (
-        'bg-green-200 text-green-800 ' +       // lighter fill + readable text
-        'border border-green-600/40 ' +        // darker outline
+        'bg-green-200 text-green-800 ' + // lighter fill + readable text
+        'border border-green-600/40 ' + // darker outline
         'shadow-sm'
       );
 
@@ -142,7 +143,15 @@ function statusClasses(status: EventStatus): string {
   }
 }
 
-function EventCard({ event }: { event: EventItem }) {
+function EventCard({
+  event,
+  canEdit,
+  onEdit,
+}: {
+  event: EventItem;
+  canEdit: boolean;
+  onEdit: () => void;
+}) {
   const calendarUrl = buildGoogleCalendarUrl(event);
   const status = getEventStatus(event);
 
@@ -157,6 +166,18 @@ function EventCard({ event }: { event: EventItem }) {
           className="object-cover transition-transform duration-300 group-hover:scale-105"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+
+        {/* Edit button (top-left) - only for coach/admin */}
+        {canEdit && (
+          <button
+            type="button"
+            onClick={onEdit}
+            className="absolute left-3 top-3 inline-flex items-center justify-center rounded-full bg-black/60 p-1.5 text-white shadow-md hover:bg-black/80"
+            aria-label="Editar o eliminar evento"
+          >
+            <MoreVertical className="h-4 w-4" />
+          </button>
+        )}
 
         {/* Status label in top-right corner */}
         <span
@@ -285,6 +306,9 @@ export default function EventsSection() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
+  const [updateOpen, setUpdateOpen] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState<EventItem | null>(null);
+
   // Load role
   useEffect(() => {
     let cancelled = false;
@@ -361,6 +385,7 @@ export default function EventsSection() {
   }, []);
 
   const canCreate = userRole === 'coach' || userRole === 'admin';
+  const canEdit = canCreate;
 
   // Keep only the earliest 3 events
   const earliestThree = events.slice(0, 3);
@@ -381,9 +406,7 @@ export default function EventsSection() {
 
         {canCreate && (
           <div className="mb-10 flex justify-end">
-            <CreateEventButton
-              userRole={userRole}
-            />
+            <CreateEventButton userRole={userRole} />
           </div>
         )}
 
@@ -398,7 +421,15 @@ export default function EventsSection() {
         {!loading && !loadError && (
           <div className="mt-6 grid gap-8 md:grid-cols-2 lg:grid-cols-3">
             {earliestThree.map((event) => (
-              <EventCard key={event.id} event={event} />
+              <EventCard
+                key={event.id}
+                event={event}
+                canEdit={canEdit}
+                onEdit={() => {
+                  setSelectedEvent(event);
+                  setUpdateOpen(true);
+                }}
+              />
             ))}
 
             {Array.from({ length: placeholderCount }).map((_, idx) => (
@@ -407,6 +438,18 @@ export default function EventsSection() {
           </div>
         )}
       </div>
+
+      {/* Update dialog for editing/deleting events */}
+      <EventUpdateDialog
+        open={updateOpen}
+        onClose={() => setUpdateOpen(false)}
+        event={selectedEvent}
+        onUpdated={(updated) => {
+          setEvents((prev) =>
+            prev.map((e) => (e.id === updated.id ? updated : e)),
+          );
+        }}
+      />
     </section>
   );
 }
