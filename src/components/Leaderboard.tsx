@@ -96,11 +96,24 @@ function rankMembers(members: Member[]): Array<Member & { rank: number }> {
 
 // --- Component
 export default function Leaderboard() {
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [members, setMembers] = useState<Member[]>([]);
   const [lastSynced, setLastSynced] = useState<Date | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch(`${API_BASE}/auth/me`, { credentials: "include" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data && data.user) {
+          setCurrentUserId(String(data.user.id));
+        }
+      })
+      .catch(() => {});
+  }, []);
+
 
   // Fetch Algoritmia users + Codeforces info
   useEffect(() => {
@@ -330,7 +343,12 @@ export default function Leaderboard() {
               )}
 
               {filtered.map((m) => (
-                <tr key={m.id} className="hover:bg-white/5">
+                <tr
+                  key={m.id}
+                  className={`hover:bg-white/5 transition-colors ${
+                    m.id === currentUserId ? "bg-white/15" : ""
+                  }`}
+                >
                   <td className="px-4 py-3 text-sm font-semibold text-white/90">
                     {m.rank}
                   </td>
@@ -410,12 +428,6 @@ export default function Leaderboard() {
                 : "Aún no se ha sincronizado con Codeforces."}
             </span>
           </div>
-
-          <p className="text-xs">
-            Nota: Los colores del handle siguen los rangos pedidos: gris
-            (0–1199), verde oscuro (1200–1399), cian (1400–1599), azul
-            (1600–1899), morado (1900–2099), naranja (2100–2599), rojo (2600+).
-          </p>
         </footer>
       </div>
     </section>
