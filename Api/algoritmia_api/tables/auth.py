@@ -8,6 +8,10 @@ from fastapi import Response, Request, Depends, Cookie
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, EmailStr, Field
 from passlib.hash import argon2
+import secrets, hashlib, string, re
+import json
+import urllib.request
+import urllib.error
 
 from .. import db
 
@@ -15,6 +19,8 @@ router = APIRouter(prefix="/auth", tags=["Auth"])
 
 SESSION_COOKIE_NAME = "sid"
 SESSION_COOKIE_AGE = 60 * 60 * 24  # one day in seconds
+
+CF_HANDLE_RE = re.compile(r"^[A-Za-z0-9_\-]{1,24}$")
 
 def _hash_token(raw: str) -> str:
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
@@ -103,7 +109,50 @@ def _validate_password_strength(pw: str) -> None:
                 "una mayúscula, un dígito y un símbolo."
             ),
         )
+    
+def _validate_codeforces_handle_exists(handle: str) -> None:
+    # Basic format validation
+    if not CF_HANDLE_RE.fullmatch(handle):
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "El handle de Codeforces debe tener entre 3 y 24 caracteres "
+                "(letras, dígitos, '_' o '-')."
+            ),
+        )
 
+    url = f"https://codeforces.com/api/user.info?handles={handle}"
+
+    try:
+        # timeout in seconds
+        with urllib.request.urlopen(url, timeout=5) as resp:
+            raw = resp.read().decode("utf-8")
+    except (urllib.error.URLError, urllib.error.HTTPError):
+        # Treat this as an external service issue, not a bad handle syntax
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "No se pudo contactar a Codeforces para verificar tu handle. "
+                "Intenta de nuevo más tarde."
+            ),
+        )
+
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        raise HTTPException(
+            status_code=503,
+            detail="Respuesta inválida de Codeforces al verificar tu handle.",
+        )
+
+    # Codeforces semantics:
+    # OK   → handle exists, data["result"] is a list with one user
+    # FAILED → handle does not exist (or other error)
+    if data.get("status") != "OK":
+        raise HTTPException(
+            status_code=422,
+            detail=f"El usuario de Codeforces '{handle}' no existe.",
+        )
 
 def get_current_user(request: Request):
     # read cookie
@@ -191,8 +240,10 @@ def signup(payload: SignUp):
     # 4) password strength
     _validate_password_strength(payload.password)
 
-    # --- Existing logic ---
+    # 5) Codeforces handle must exist
+    _validate_codeforces_handle_exists(payload.codeforces_handle)
 
+    # --- Existing logic ---
     pwd_hash = argon2.hash(payload.password)
 
     with db.connect() as conn:
