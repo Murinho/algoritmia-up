@@ -179,18 +179,6 @@ export default function EventCreateDialog({ open, onClose }: Props) {
         video_call_link: videoCallLink.trim() || undefined,
       });
 
-      // 3) Adaptar fila de DB → EventItem para el frontend
-      const event: EventItem = {
-        id: created.id,
-        title: created.title,
-        startsAt: created.starts_at ?? new Date(startsAtLocal).toISOString(),
-        endsAt: created.ends_at ?? new Date(endsAtLocal).toISOString(),
-        location: created.location ?? '',
-        description: created.description ?? '',
-        image: created.image_url ?? '',
-        videoCallLink: created.video_call_link ?? undefined,
-      };
-
       resetForm();
       onClose();
     } catch (err) {

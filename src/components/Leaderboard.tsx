@@ -212,7 +212,7 @@ export default function Leaderboard() {
           setMembers(builtMembers);
           setLastSynced(new Date());
         }
-      } catch (err: any) {
+      } catch (err) {
         console.error(err);
         if (!cancelled) {
           setError("No se pudo sincronizar con Codeforces.");
