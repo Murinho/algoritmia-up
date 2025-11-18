@@ -224,21 +224,6 @@ def update_me(
 
     return row
 
-""""
-@router.patch("/{user_id}")
-def update_user(user_id: int, payload: UserUpdate):
-    fields = payload.model_dump(exclude_unset=True)
-    if not fields:
-        raise HTTPException(status_code=400, detail="No fields to update")
-    cols = ", ".join(f"{k}=%s" for k in fields.keys())
-    params = list(fields.values()) + [user_id]
-    with db.connect() as conn:
-        row = db.fetchone(conn, f"UPDATE users SET {cols} WHERE id=%s RETURNING *", params)
-    if not row:
-        raise HTTPException(status_code=404, detail="User not found")
-    return row
-"""
-
 
 @router.delete("/{user_id}")
 def delete_user(user_id: int):
