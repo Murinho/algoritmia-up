@@ -3,7 +3,6 @@
 import { useMemo, useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { signupLocal } from "@/lib/auth";
-import { HttpError } from "@/lib/api";
 
 const MONTHS = [
   { value: "01", label: "Enero" },

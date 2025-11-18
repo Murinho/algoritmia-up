@@ -2,15 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { API_BASE } from "@/lib/api";
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL;
-
-type ApiErrorPayload = {
-  detail?: string;
-  // allow other fields without using `any`
-  [key: string]: unknown;
-};
 
 function extractDetail(data: unknown): string | undefined {
   if (typeof data === "object" && data !== null && "detail" in data) {

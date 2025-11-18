@@ -3,106 +3,69 @@
 import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { API_BASE } from "@/lib/api";
 
-// --- Types
+type AlgoritmiaUser = {
+  id: number;
+  full_name: string;
+  codeforces_handle?: string | null;
+  country: string;
+  profile_image_url?: string | null;
+};
+
 export type Member = {
   id: string;
   handle: string;
   name: string;
-  countryCode: string; // ISO 3166-1 alpha-2 (e.g., "MX", "US", "BR")
-  rating: number; // current CF rating
-  maxRating?: number; // max CF rating
-  contests?: number; // number of CF contests
-  avatarUrl?: string; // optional future use
-  lastOnline?: string; // ISO string
+  countryCode: string;
+  rating: number;
+  maxRating?: number;
+  avatarUrl?: string | null;
 };
 
-// --- Mock data (replace with API later)
-const MOCK_MEMBERS: Member[] = [
-  {
-    id: "1",
-    handle: "Murinho",
-    name: "Adrián Muro",
-    countryCode: "MX",
-    rating: 2012,
-    maxRating: 2087,
-  },
-  {
-    id: "2",
-    handle: "tiojuan",
-    name: "Juan Marquina",
-    countryCode: "MX",
-    rating: 1875,
-    maxRating: 1930,
-  },
-  {
-    id: "3",
-    handle: "erwinlh",
-    name: "Erwin López",
-    countryCode: "MX",
-    rating: 1650,
-    maxRating: 1712,
-  },
-  {
-    id: "4",
-    handle: "lomeliandres",
-    name: "Andrés Lomelí",
-    countryCode: "MX",
-    rating: 1420,
-    maxRating: 1506,
-  },
-  {
-    id: "5",
-    handle: "algoritmia_newbie",
-    name: "María Rodríguez",
-    countryCode: "CO",
-    rating: 1180,
-    maxRating: 1210,
-  },
-  {
-    id: "6",
-    handle: "silverMex",
-    name: "Diego Ruiz",
-    countryCode: "MX",
-    rating: 2101,
-    maxRating: 2233,
-  },
-  {
-    id: "7",
-    handle: "br_carioca",
-    name: "Luiz Souza",
-    countryCode: "BR",
-    rating: 1590,
-    maxRating: 1644,
-  },
-  {
-    id: "8",
-    handle: "grandmx",
-    name: "Renata Pérez",
-    countryCode: "MX",
-    rating: 2620,
-    maxRating: 2701,
-  },
-];
+type UsersResponse = {
+  items: AlgoritmiaUser[];
+};
+
+// Shape of Codeforces response
+type CodeforcesUser = {
+  handle: string;
+  rating?: number;
+  maxRating?: number;
+  country?: string;
+};
+
+type CodeforcesResponse = {
+  status: "OK" | "FAILED";
+  comment?: string;
+  result?: CodeforcesUser[];
+};
 
 function ratingColor(r: number): string {
-  if (r >= 2600) return "text-red-500"; // red
+  if (r >= 4000) return "text-black"; // black (tourist black)
+  if (r >= 2400) return "text-red-500"; // red
   if (r >= 2100) return "text-orange-400"; // orange
   if (r >= 1900) return "text-purple-400"; // purple
   if (r >= 1600) return "text-blue-400"; // blue
   if (r >= 1400) return "text-cyan-400"; // cyan
   if (r >= 1200) return "text-green-700"; // dark green
-  return "text-gray-400"; // gray
+  if (r >= 1) return "text-gray-400"; // gray
+  return "text-black"; 
 }
 
 function ratingTitle(r: number): string {
-  if (r >= 2600) return "Grandmaster";
+  if (r >= 4000) return "Tourist";
+  if (r >= 3000) return "Legendary Grandmaster";
+  if (r >= 2600) return "International Grandmaster";
+  if (r >= 2400) return "Grandmaster;"
+  if (r >= 2300) return "International Master"
   if (r >= 2100) return "Master";
   if (r >= 1900) return "Candidate Master";
   if (r >= 1600) return "Expert";
   if (r >= 1400) return "Specialist";
   if (r >= 1200) return "Pupil";
-  return "Newbie";
+  if (r >= 1) return "Newbie";
+  return "Unrated";
 }
 
 function formatDateTime(dt: Date): string {
@@ -133,24 +96,140 @@ function rankMembers(members: Member[]): Array<Member & { rank: number }> {
 
 // --- Component
 export default function Leaderboard() {
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [members, setMembers] = useState<Member[]>([]);
-  const [lastSynced, setLastSynced] = useState<Date>(new Date());
+  const [lastSynced, setLastSynced] = useState<Date | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // In the future, plug Codeforces API here.
-  // Example: fetch from your backend that caches CF user.ratedList
-  // useEffect(() => {
-  //   setLoading(true);
-  //   fetch("/api/leaderboard")
-  //     .then((r) => r.json())
-  //     .then((data: Member[]) => setMembers(data))
-  //     .catch(() => setMembers(MOCK_MEMBERS))
-  //     .finally(() => setLoading(false));
-  // }, []);
-
-  // For now: use mock immediately
   useEffect(() => {
-    setMembers(MOCK_MEMBERS);
+    fetch(`${API_BASE}/auth/me`, { credentials: "include" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data && data.user) {
+          setCurrentUserId(String(data.user.id));
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+
+  // Fetch Algoritmia users + Codeforces info
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchData = async () => {
+      setLoading(true);
+      setError(null);
+
+      try {
+        // 1) Get all Algoritmia UP users
+        const res = await fetch(`${API_BASE}/users`, {
+          credentials: "include",
+        });
+        if (!res.ok) {
+          throw new Error(`Error al obtener usuarios (${res.status})`);
+        }
+        const data: UsersResponse = await res.json();
+        const users = data.items || [];
+
+        // 2) Extract CF handles
+        const handles = users
+          .map((u) => u.codeforces_handle?.trim())
+          .filter((h): h is string => !!h && h.length > 0);
+
+        if (handles.length === 0) {
+          if (!cancelled) {
+            setMembers([]);
+            setLastSynced(new Date());
+          }
+          return;
+        }
+
+        // 3) Build Codeforces API URL
+        //    Example:
+        //    https://codeforces.com/api/user.info?handles=DmitriyH;Fefer_Ivan&checkHistoricHandles=false
+        const joinedHandles = handles.join(";");
+        const cfUrl = `https://codeforces.com/api/user.info?handles=${encodeURIComponent(
+          joinedHandles
+        )}&checkHistoricHandles=false`;
+
+        const cfRes = await fetch(cfUrl);
+        if (!cfRes.ok) {
+          throw new Error(`Error al consultar Codeforces (${cfRes.status})`);
+        }
+        const cfData: CodeforcesResponse = await cfRes.json();
+
+        if (cfData.status !== "OK" || !cfData.result) {
+          throw new Error(
+            cfData.comment || "Codeforces devolvió un estado de error"
+          );
+        }
+
+        // 4) Map handle -> Codeforces user
+        const cfByHandle = new Map<string, CodeforcesUser>();
+        for (const u of cfData.result) {
+          cfByHandle.set(u.handle.toLowerCase(), u);
+        }
+
+        // 5) Build Member[] from join (Algoritmia users + CF data)
+        const builtMembers: Member[] = users.flatMap((u) => {
+          const handle = u.codeforces_handle?.trim();
+          if (!handle) return [];
+
+          const cf = cfByHandle.get(handle.toLowerCase());
+          if (!cf) return [];
+
+          const rating = cf.rating ?? 0;
+          const maxRating = cf.maxRating ?? undefined;
+
+          const avatarUrl = u.profile_image_url
+            ? u.profile_image_url.startsWith("http")
+              ? u.profile_image_url
+              : `${API_BASE}${u.profile_image_url}`
+            : null;
+
+          const countryCode =
+            u.country && u.country.length === 2
+              ? u.country.toUpperCase()
+              : "XX";
+
+          return [
+            {
+              id: String(u.id),
+              handle,
+              name: u.full_name,
+              countryCode,
+              rating,
+              maxRating,
+              avatarUrl,
+            },
+          ];
+        });
+
+        if (!cancelled) {
+          setMembers(builtMembers);
+          setLastSynced(new Date());
+        }
+      } catch (err) {
+        console.error(err);
+        if (!cancelled) {
+          setError("No se pudo sincronizar con Codeforces.");
+          setMembers([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchData();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const filtered = useMemo(() => {
@@ -164,13 +243,15 @@ export default function Leaderboard() {
   }, [members, query]);
 
   return (
-    <section className="
+    <section
+      className="
         relative
         min-h-[100dvh]
         pt-[env(safe-area-inset-top)]
         pb-[env(safe-area-inset-bottom)]
         flex items-center
-    ">
+    "
+    >
       {/* Background gradient that matches Algoritmia UP style */}
       <div
         aria-hidden
@@ -184,9 +265,19 @@ export default function Leaderboard() {
               Algoritmia UP – Codeforces Leaderboard
             </h2>
             <p className="mt-1 text-sm text-white/70">
-              Ranking basado en el rating actual de Codeforces (mock data; listo
-              para conectar a API).
+              Ranking basado en el rating actual de Codeforces para los miembros
+              de Algoritmia UP.
             </p>
+            {loading && (
+              <p className="mt-1 text-xs text-white/50">
+                Sincronizando con Codeforces…
+              </p>
+            )}
+            {error && (
+              <p className="mt-1 text-xs text-red-300">
+                {error} (revisa tu conexión o intenta más tarde).
+              </p>
+            )}
           </div>
 
           <div className="flex w-full max-w-md items-center gap-2 sm:w-auto">
@@ -227,18 +318,56 @@ export default function Leaderboard() {
               </tr>
             </thead>
             <tbody className="divide-y divide-white/10">
+              {loading && members.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={7}
+                    className="px-4 py-6 text-center text-sm text-white/70"
+                  >
+                    Cargando datos del leaderboard…
+                  </td>
+                </tr>
+              )}
+
+              {!loading && filtered.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={7}
+                    className="px-4 py-8 text-center text-sm text-white/70"
+                  >
+                    {query
+                      ? `No se encontraron miembros que coincidan con "${query}".`
+                      : "No hay miembros con handle de Codeforces configurado todavía."}
+                  </td>
+                </tr>
+              )}
+
               {filtered.map((m) => (
-                <tr key={m.id} className="hover:bg-white/5">
+                <tr
+                  key={m.id}
+                  className={`hover:bg-white/5 transition-colors ${
+                    m.id === currentUserId ? "bg-white/15" : ""
+                  }`}
+                >
                   <td className="px-4 py-3 text-sm font-semibold text-white/90">
                     {m.rank}
                   </td>
-
                   <td className="px-4 py-3 text-sm">
                     <div className="flex items-center gap-2">
-                      {/* small avatar fallback */}
-                      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-white/10 text-xs font-bold text-white">
-                        {m.handle.slice(0, 2).toUpperCase()}
-                      </div>
+                      {m.avatarUrl ? (
+                        <Image
+                          src={m.avatarUrl}
+                          alt={m.name}
+                          width={32}
+                          height={32}
+                          className="h-8 w-8 rounded-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-xs font-bold text-white">
+                          {m.handle.slice(0, 2).toUpperCase()}
+                        </div>
+                      )}
+
                       <Link
                         href={`https://codeforces.com/profile/${m.handle}`}
                         target="_blank"
@@ -246,9 +375,7 @@ export default function Leaderboard() {
                           m.rating
                         )}`}
                       >
-                        <strong> 
-                            {m.handle}
-                        </strong>
+                        <strong>{m.handle}</strong>
                       </Link>
                     </div>
                   </td>
@@ -257,45 +384,37 @@ export default function Leaderboard() {
 
                   <td className="px-4 py-3 text-sm text-white/90">
                     <div className="flex items-center gap-2">
-                        <Image
+                      <Image
                         src={`https://flagcdn.com/24x18/${m.countryCode.toLowerCase()}.png`}
                         alt={m.countryCode}
                         width={24}
                         height={18}
-                        />
-                        <span className="text-white/70">{m.countryCode}</span>
+                      />
+                      <span className="text-white/70">{m.countryCode.toUpperCase()}</span>
                     </div>
                   </td>
 
-
                   <td className="px-4 py-3 text-sm">
-                    <span className={`rounded-md bg-white/5 px-2 py-1 font-semibold ${ratingColor(
-                      m.rating
-                    )}`}>
+                    <span
+                      className={`rounded-md bg-white/5 px-2 py-1 font-semibold ${ratingColor(
+                        m.rating
+                      )}`}
+                    >
                       {m.rating}
                     </span>
                   </td>
 
-                  <td className="px-4 py-3 text-sm text-white/80">{m.maxRating ?? "—"}</td>
+                  <td className="px-4 py-3 text-sm text-white/80">
+                    {m.maxRating ?? "—"}
+                  </td>
 
                   <td className="px-4 py-3 text-sm text-white/90">
                     <span className={`font-medium ${ratingColor(m.rating)}`}>
-                      {ratingTitle(m.rating)}
+                      <strong>{ratingTitle(m.rating)}</strong>
                     </span>
                   </td>
                 </tr>
               ))}
-
-              {filtered.length === 0 && (
-                <tr>
-                  <td
-                    colSpan={8}
-                    className="px-4 py-8 text-center text-sm text-white/70"
-                  >
-                    No se encontraron miembros que coincidan con {query}.
-                  </td>
-                </tr>
-              )}
             </tbody>
           </table>
         </div>
@@ -304,15 +423,11 @@ export default function Leaderboard() {
           <div className="flex items-center gap-2">
             <span className="inline-block h-2 w-2 rounded-full bg-emerald-400" />
             <span>
-              Última sincronización: {formatDateTime(lastSynced)}
+              {lastSynced
+                ? `Última sincronización: ${formatDateTime(lastSynced)}`
+                : "Aún no se ha sincronizado con Codeforces."}
             </span>
           </div>
-
-          <p className="text-xs">
-            Nota: Los colores del handle siguen los rangos pedidos: gris (0–1199),
-            verde oscuro (1200–1399), cian (1400–1599), azul (1600–1899), morado
-            (1900–2099), naranja (2100–2599), rojo (2600+).
-          </p>
         </footer>
       </div>
     </section>

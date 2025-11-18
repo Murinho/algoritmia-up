@@ -34,10 +34,6 @@ function localToISO(local: string) {
   return dt.toISOString();
 }
 
-function genId() {
-  return Math.random().toString(36).slice(2, 10);
-}
-
 function Field({
   label,
   hint,
