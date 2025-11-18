@@ -3,6 +3,7 @@
 import { useMemo, useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { signupLocal } from "@/lib/auth";
+import { HttpError } from "@/lib/api";
 
 const MONTHS = [
   { value: "01", label: "Enero" },
@@ -226,7 +227,7 @@ const COUNTRY_OPTIONS = [
 ];
 
 const passwordRegex = /^(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,20}$/;
-const cfRegex = /^[A-Za-z0-9_\-]{3,24}$/;
+const cfRegex = /^[A-Za-z0-9_\-]{1,24}$/;
 
 function isValidDate(yyyy: number, mm: number, dd: number) {
   const dt = new Date(yyyy, mm - 1, dd);
@@ -301,7 +302,7 @@ export default function SignUp() {
 
   const disabled = submitting;
 
-  const onSubmit: React.FormEventHandler<HTMLFormElement> = async (e) => {
+    const onSubmit: React.FormEventHandler<HTMLFormElement> = async (e) => {
     e.preventDefault();
     if (submitting) return;
     setSuccessMsg(null);
@@ -337,7 +338,10 @@ export default function SignUp() {
       nextErrors.email = "Debe terminar con @up.edu.mx";
     }
 
-    if (!cfRegex.test(codeforces)) nextErrors.codeforces = "3–24 caracteres, letras/números/_/-";
+    if (!cfRegex.test(codeforces)) {
+      nextErrors.codeforces = "3–24 caracteres, letras/números/_/-";
+    }
+
     if (!(birthYear && birthMonth && birthDay) || !isValidDate(birthYear, birthMonth, birthDay)) {
       nextErrors.birthdate = "Fecha inválida";
     }
@@ -346,6 +350,7 @@ export default function SignUp() {
 
     if (!entryMonth || !entryYear) nextErrors.entry = "Selecciona mes y año";
     if (!gradMonth || !gradYear) nextErrors.grad = "Selecciona mes y año";
+
     const entryDate = new Date(entryYear, entryMonth - 1, 1);
     const gradDate = new Date(gradYear, gradMonth - 1, 1);
     if (entryMonth && entryYear && gradMonth && gradYear && gradDate <= entryDate) {
@@ -356,8 +361,11 @@ export default function SignUp() {
       nextErrors.password = "8–20 caracteres, 1 mayúscula, 1 símbolo, 1 dígito";
     }
 
-    setErrors(nextErrors);
-    if (Object.keys(nextErrors).length > 0) return;
+    // If there are client-side errors, stop here
+    if (Object.keys(nextErrors).length > 0) {
+      setErrors(nextErrors);
+      return;
+    }
 
     const payload = {
       full_name: fullname,
@@ -382,18 +390,31 @@ export default function SignUp() {
       await signupLocal(payload);
 
       setSuccessMsg("¡Cuenta creada! Redirigiendo a inicio de sesión…");
-
       form.reset();
-
       setErrors({});
 
       redirectTimer.current = setTimeout(() => {
         router.push("/login");
       }, 2000);
-    } catch (err) {
+    } catch (err: unknown) {
       console.error("Signup error object:", err);
-      const fieldErrors: Record<string, string> = {};
-      setErrors((prev) => ({ ...prev, ...fieldErrors }));
+
+      if (err instanceof HttpError) {
+        // Try to use backend's `detail` if present, otherwise generic message
+        const detail = err.message;
+
+        // If backend is specifically complaining about Codeforces, attach to that field
+        if (detail && detail.toLowerCase().includes("codeforces")) {
+          setErrors({ codeforces: detail });
+        } else {
+          setErrors({ _: detail || "No se pudo crear la cuenta." });
+        }
+      } else {
+        setErrors({
+          _: "Ocurrió un error inesperado al crear la cuenta. Intenta nuevamente.",
+        });
+      }
+
       setSuccessMsg(null);
     } finally {
       setSubmitting(false);

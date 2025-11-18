@@ -505,9 +505,16 @@ export default function ProfilePage() {
       });
 
       if (!resProfile.ok) {
-        const text = await resProfile.text();
-        console.error("Profile update error:", text);
-        alert("No se pudo actualizar el perfil. Intenta de nuevo.");
+        let msg = "No se pudo actualizar el perfil. Intenta de nuevo.";
+        try {
+          const data = await resProfile.json();
+          if (data && typeof data.detail === "string") {
+            msg = data.detail;
+          }
+        } catch {
+          // ignore JSON parse errors, keep default message
+        }
+        alert(msg);
         setSaving(false);
         return;
       }

@@ -5,11 +5,16 @@ from fastapi import APIRouter, HTTPException, Query, UploadFile, File, Depends
 from pydantic import BaseModel, EmailStr, Field
 
 from pathlib import Path
-import secrets
+import secrets, hashlib, string, re
 import os
+import json
+import urllib.request
+import urllib.error
 
 from .. import db
 from .auth import get_current_user
+
+CF_HANDLE_RE = re.compile(r"^[A-Za-z0-9_\-]{1,24}$")
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
@@ -94,6 +99,49 @@ def _validate_birthdate_before_today(birthdate: date) -> None:
             detail="La fecha de nacimiento debe ser anterior a hoy.",
         )
 
+def _validate_codeforces_handle_exists(handle: str) -> None:
+    # Basic format validation
+    if not CF_HANDLE_RE.fullmatch(handle):
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "El handle de Codeforces debe tener entre 3 y 24 caracteres "
+                "(letras, dígitos, '_' o '-')."
+            ),
+        )
+
+    url = f"https://codeforces.com/api/user.info?handles={handle}"
+
+    try:
+        # timeout in seconds
+        with urllib.request.urlopen(url, timeout=5) as resp:
+            raw = resp.read().decode("utf-8")
+    except (urllib.error.URLError, urllib.error.HTTPError):
+        # Treat this as an external service issue, not a bad handle syntax
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "No se pudo contactar a Codeforces para verificar tu handle. "
+                "Intenta de nuevo más tarde."
+            ),
+        )
+
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        raise HTTPException(
+            status_code=503,
+            detail="Respuesta inválida de Codeforces al verificar tu handle.",
+        )
+
+    # Codeforces semantics:
+    # OK   → handle exists, data["result"] is a list with one user
+    # FAILED → handle does not exist (or other error)
+    if data.get("status") != "OK":
+        raise HTTPException(
+            status_code=422,
+            detail=f"El usuario de Codeforces '{handle}' no existe.",
+        )
 
 @router.get("")
 def list_users(q: Optional[str] = Query(None, description="Search by name or email")):
@@ -189,6 +237,42 @@ def update_me(
     fields.pop("role", None)
     fields.pop("profile_image_url", None)
 
+    # ✅ If codeforces_handle is being changed, validate against Codeforces
+    #    and ensure no other Algoritmia UP user already has it.
+    if "codeforces_handle" in fields:
+        new_cf = (fields["codeforces_handle"] or "").strip()
+        old_cf = (user.get("codeforces_handle") or "").strip()
+
+        # Only do the checks if it actually changed
+        if new_cf and new_cf != old_cf:
+            # 1) Check that the handle exists on Codeforces (calls CF API)
+            _validate_codeforces_handle_exists(new_cf)
+
+            # 2) Check that no other user has this handle
+            with db.connect() as conn:
+                existing = db.fetchone(
+                    conn,
+                    "SELECT id FROM users WHERE codeforces_handle=%s AND id<>%s",
+                    [new_cf, user_id],
+                )
+            if existing:
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        "Ese handle de Codeforces ya está asociado a otro usuario de "
+                        "Algoritmia UP."
+                    ),
+                )
+
+            # Normalize stored value
+            fields["codeforces_handle"] = new_cf
+        elif not new_cf:
+            # Optional: if you want to disallow empty handle on update
+            raise HTTPException(
+                status_code=422,
+                detail="El handle de Codeforces no puede estar vacío.",
+            )
+
     # NEW: birthdate validation if present
     if "birthdate" in fields and fields["birthdate"] is not None:
         _validate_birthdate_before_today(fields["birthdate"])
@@ -223,7 +307,6 @@ def update_me(
         raise HTTPException(status_code=404, detail="User not found")
 
     return row
-
 
 @router.delete("/{user_id}")
 def delete_user(user_id: int):

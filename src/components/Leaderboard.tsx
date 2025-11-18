@@ -57,8 +57,8 @@ function ratingTitle(r: number): string {
   if (r >= 4000) return "Tourist";
   if (r >= 3000) return "Legendary Grandmaster";
   if (r >= 2600) return "International Grandmaster";
-  if (r >= 2400) return "Grandmaster;"
-  if (r >= 2300) return "International Master"
+  if (r >= 2400) return "Grandmaster";
+  if (r >= 2300) return "International Master";
   if (r >= 2100) return "Master";
   if (r >= 1900) return "Candidate Master";
   if (r >= 1600) return "Expert";
