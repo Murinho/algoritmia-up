@@ -1,7 +1,7 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 
-## Getting Started
+## Launching the Frontend
 
 First install the necessary dependencies using:
 ```bash
@@ -25,6 +25,22 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+
+## Launching the Backend
+First go to the Api root folder:
+```bash
+cd Api
+```
+
+Secondly install the requirements:
+```bash
+pip install -r requirements.txt
+```
+
+Thirdly start the backend server at port 8000:
+```bash
+uvicorn algoritmia_api.app:app --reload --port 8000
+```
 
 ## Learn More
 
@@ -76,3 +92,5 @@ curl -i "http://127.0.0.1:8000/users" \
   "profile_image_url": "https://example.com/avatar.png"
 }
 JSON
+
+
