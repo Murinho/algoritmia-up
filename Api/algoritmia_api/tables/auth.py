@@ -93,6 +93,11 @@ class ResetPasswordPayload(BaseModel):
     token: str
     new_password: str = Field(min_length=8)
 
+class VerifyEmailResponse(BaseModel):
+    ok: bool
+    message: str
+
+
 def _hash_token(raw: str) -> str:
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
@@ -218,6 +223,53 @@ Equipo Algoritmia UP
     send_email(to_email=to_email, subject=subject, text_body=text_body, html_body=html_body)
 
 
+def _send_email_verification(to_email: str, verify_url: str, preferred_name: str) -> None:
+    subject = "Confirma tu correo - Algoritmia UP"
+
+    text_body = f"""Hola {preferred_name},
+
+Gracias por registrarte en Algoritmia UP.
+
+Para completar tu registro y confirmar que este correo te pertenece, haz clic en el siguiente enlace (o cópialo en tu navegador):
+
+{verify_url}
+
+Si tú no iniciaste este registro, puedes ignorar este correo.
+
+Saludos,
+Equipo Algoritmia UP
+"""
+
+    html_body = f"""\
+<html>
+  <body style="font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background-color:#f5f5f5; padding:24px;">
+    <div style="max-width:480px; margin:0 auto; background:white; padding:24px; border-radius:12px;">
+      <h2 style="margin-top:0; color:#C5133D;">Confirma tu correo</h2>
+      <p>Hola {preferred_name},</p>
+      <p>Gracias por registrarte en <strong>Algoritmia UP</strong>.</p>
+      <p>Para completar tu registro, confirma que este correo te pertenece haciendo clic en el siguiente botón:</p>
+      <p style="text-align:center; margin:24px 0;">
+        <a href="{verify_url}"
+           style="background-color:#C5133D; color:white; padding:12px 24px; border-radius:999px; text-decoration:none; font-weight:600;">
+          Confirmar correo
+        </a>
+      </p>
+      <p style="font-size:14px; color:#555;">
+        Si el botón no funciona, copia y pega este enlace en tu navegador:<br/>
+        <a href="{verify_url}" style="color:#C5133D;">{verify_url}</a>
+      </p>
+      <p style="font-size:12px; color:#777; margin-top:24px;">
+        Si tú no iniciaste este registro, puedes ignorar este correo.
+      </p>
+      <p style="font-size:12px; color:#777;">
+        — Equipo Algoritmia UP
+      </p>
+    </div>
+  </body>
+</html>
+"""
+    send_email(to_email=to_email, subject=subject, text_body=text_body, html_body=html_body)
+
 
 def get_current_user(request: Request):
     # read cookie
@@ -269,11 +321,13 @@ def logout(response: Response, request: Request):
 
 
 @router.post("/signup")
-def signup(payload: SignUp):
+def signup(payload: SignUp, background_tasks: BackgroundTasks):
     """
     Create a user + local auth identity.
     NOTE: This DOES NOT log the user in or create a session.
     Frontend should redirect to the login page on success.
+
+    NEW: 
     """
     # --- Server-side validations ---
 
@@ -403,7 +457,46 @@ def signup(payload: SignUp):
                 raise HTTPException(status_code=409, detail="This provider identity already exists")
             raise HTTPException(status_code=500, detail="Internal error during signup")
 
-    return {"user": user, "identity": identity}
+    # --- NEW: create email verification token + send email ---
+    # raw token (what we send by email) and hashed token (what we store)
+    raw_token = secrets.token_urlsafe(32)
+    token_hash = _hash_token(raw_token)
+    ttl_hours = 24
+    expires_at = datetime.utcnow() + timedelta(hours=ttl_hours)
+
+    with db.connect() as conn:
+        # Optional: invalidate older pending tokens for this user
+        db.execute(
+            conn,
+            """
+            UPDATE email_verification_tokens
+            SET used_at = NOW()
+            WHERE user_id = %s AND used_at IS NULL AND expires_at > NOW()
+            """,
+            [user_id],
+        )
+
+        db.execute(
+            conn,
+            """
+            INSERT INTO email_verification_tokens (user_id, token_hash, expires_at)
+            VALUES (%s, %s, %s)
+            """,
+            [user_id, token_hash, expires_at],
+        )
+        conn.commit()
+
+    verify_url = f"{FRONTEND_BASE_URL}/verificar-correo?token={raw_token}"
+
+    # Send in background so signup response is fast
+    background_tasks.add_task(
+        _send_email_verification,
+        str(payload.email),
+        verify_url,
+        payload.preferred_name,
+    )
+
+    return {"user": user, "identity": identity, "email_verification_sent": True}
 
 
 @router.post("/login")
@@ -417,6 +510,12 @@ def login(payload: Login, response: Response):
         )
     if not ident or not ident.get("password_hash"):
         raise HTTPException(status_code=401, detail="Invalid credentials")
+    
+    if ident.get("email_verified_at") is None:
+        raise HTTPException(
+            status_code=403,
+            detail="Debes verificar tu correo antes de iniciar sesión. Revisa tu bandeja de entrada.",
+        )
 
     # 2) verify password
     if not argon2.verify(payload.password, ident["password_hash"]):
@@ -647,3 +746,73 @@ def reset_password(payload: ResetPasswordPayload):
             )
 
     return {"ok": True}
+
+
+@router.get("/verify-email", response_model=VerifyEmailResponse)
+def verify_email(token: str):
+    """
+    Verifies a user's email using a one-time verification token.
+    Called from the frontend when the user opens /verificar-correo?token=...
+    """
+    token_hash = _hash_token(token)
+
+    with db.connect() as conn:
+        try:
+            row = db.fetchone(
+                conn,
+                """
+                SELECT *
+                FROM email_verification_tokens
+                WHERE token_hash = %s
+                  AND used_at IS NULL
+                  AND expires_at > NOW()
+                """,
+                [token_hash],
+            )
+
+            if not row:
+                raise HTTPException(
+                    status_code=400,
+                    detail="El enlace de verificación no es válido o ha expirado.",
+                )
+
+            user_id = row["user_id"]
+
+            # Mark token as used
+            db.execute(
+                conn,
+                """
+                UPDATE email_verification_tokens
+                SET used_at = NOW()
+                WHERE id = %s AND used_at IS NULL
+                """,
+                [row["id"]],
+            )
+
+            # Mark email as verified on local identity
+            db.execute(
+                conn,
+                """
+                UPDATE auth_identities
+                SET email_verified_at = NOW()
+                WHERE user_id = %s AND provider = 'local'
+                """,
+                [user_id],
+            )
+
+            conn.commit()
+
+        except HTTPException:
+            conn.rollback()
+            raise
+        except Exception:
+            conn.rollback()
+            raise HTTPException(
+                status_code=500,
+                detail="Error interno al verificar el correo.",
+            )
+
+    return VerifyEmailResponse(
+        ok=True,
+        message="Correo verificado correctamente. Ya puedes iniciar sesión.",
+    )
