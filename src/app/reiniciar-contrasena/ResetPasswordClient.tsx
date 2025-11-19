@@ -12,12 +12,10 @@ function extractDetail(data: unknown): string | undefined {
   return undefined;
 }
 
-// Same password rule you’re enforcing in the backend:
-// at least 8 chars, 1 lowercase, 1 uppercase, 1 digit, 1 symbol.
 const strongPasswordRegex =
   /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
 
-export default function ResetPassword() {
+export default function ResetPasswordClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -89,7 +87,9 @@ export default function ResetPassword() {
       }, 1500);
     } catch (err: unknown) {
       const msg =
-        err instanceof Error ? err.message : "No se pudo restablecer la contraseña.";
+        err instanceof Error
+          ? err.message
+          : "No se pudo restablecer la contraseña.";
       setErrors({ form: msg });
     } finally {
       setSubmitting(false);
