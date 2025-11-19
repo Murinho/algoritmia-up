@@ -6,8 +6,8 @@ import { FaInstagram, FaGithub, FaLinkedin, FaTwitter } from 'react-icons/fa';
 export default function Contact() {
   return (
     <section 
-      id = "contact"
-      className="relative py-20 inset-0 -z-10 bg-gradient-to-tr from-[#0D0D0D] via-[#2c1e28] to-[#B5133D]">
+      id="contact"
+      className="relative py-20 bg-gradient-to-tr from-[#0D0D0D] via-[#2c1e28] to-[#B5133D]">
       <div className="mx-auto max-w-7xl px-6 lg:px-8 grid grid-cols-1 lg:grid-cols-2 gap-12 ">
         {/* LEFT SIDE */}
         <div>
@@ -55,7 +55,12 @@ export default function Contact() {
           <div className="mt-10">
             <h3 className="text-white font-semibold mb-4">Síguenos</h3>
             <div className="flex gap-4">
-              <a href="#" className="p-2 rounded-lg bg-white/10 hover:bg-[#C5133D] hover:text-white transition">
+              <a
+                href="https://www.instagram.com/iia.upags/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="p-2 rounded-lg bg-white/10 hover:bg-[#C5133D] hover:text-white transition"
+              >
                 <FaInstagram className="h-5 w-5" />
               </a>
               <a href="#" className="p-2 rounded-lg bg-white/10 hover:bg-[#C5133D] hover:text-white transition">
