@@ -543,7 +543,7 @@ def request_password_reset(payload: RequestPasswordReset, background_tasks: Back
 
         conn.commit()
 
-    reset_url = f"{FRONTEND_BASE_URL}/reset-password?token={raw_token}"
+    reset_url = f"{FRONTEND_BASE_URL}/reiniciar-contrasena?token={raw_token}"
 
     # Send email in background
     background_tasks.add_task(_send_password_reset_email, email_str, reset_url)
