@@ -78,13 +78,8 @@ Environment:
 - Set the following environment variables in your settings.json file located in File tab -> Preferences -> Settings -> Features -> Terminal -> Integrated -> Env: Windows:
   - "NEXT_PUBLIC_API_BASE_URL": "http://localhost:8000",
   - "DATABASE_URL": "postgresql://user:password@localhost:5432/mydb",
-  - "SMTP_HOST": "smtp.gmail.com",
-  - "SMTP_PORT": "587",
-  - "SMTP_USER": "algoritmiaup@gmail.com",
-  - "SMTP_PASS": "noflfouwknsbpdak",
-  - "FROM_EMAIL": "Algoritmia UP <algoritmiaup@gmail.com>",
-  - "FRONTEND_BASE_URL": "http://localhost:3000",
-
+  - STMP variables too.
+  
   The `POST /init` endpoint will create the `public.leaderboard` table if it does not exist.
 
 The API enables CORS for `http://localhost:3000` by default so the Next.js app can call it during development.
