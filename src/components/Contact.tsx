@@ -5,10 +5,11 @@ import { FaInstagram, FaGithub, FaLinkedin, FaTwitter } from 'react-icons/fa';
 
 export default function Contact() {
   return (
-    <section 
+    <section
       id="contact"
-      className="relative py-20 bg-gradient-to-tr from-[#0D0D0D] via-[#2c1e28] to-[#B5133D]">
-      <div className="mx-auto max-w-7xl px-6 lg:px-8 grid grid-cols-1 lg:grid-cols-2 gap-12 ">
+      className="relative py-20 bg-gradient-to-tr from-[#0D0D0D] via-[#2c1e28] to-[#B5133D]"
+    >
+      <div className="mx-auto max-w-7xl px-6 lg:px-8 grid grid-cols-1 lg:grid-cols-2 gap-12">
         {/* LEFT SIDE */}
         <div>
           <h2 className="text-3xl font-bold text-white">
@@ -63,23 +64,129 @@ export default function Contact() {
               >
                 <FaInstagram className="h-5 w-5" />
               </a>
-              <a href="#" className="p-2 rounded-lg bg-white/10 hover:bg-[#C5133D] hover:text-white transition">
+              <a
+                href="#"
+                className="p-2 rounded-lg bg-white/10 hover:bg-[#C5133D] hover:text-white transition"
+              >
                 <FaGithub className="h-5 w-5" />
               </a>
-              <a href="#" className="p-2 rounded-lg bg-white/10 hover:bg-[#C5133D] hover:text-white transition">
+              <a
+                href="#"
+                className="p-2 rounded-lg bg-white/10 hover:bg-[#C5133D] hover:text-white transition"
+              >
                 <FaLinkedin className="h-5 w-5" />
               </a>
-              <a href="#" className="p-2 rounded-lg bg-white/10 hover:bg-[#C5133D] hover:text-white transition">
+              <a
+                href="#"
+                className="p-2 rounded-lg bg-white/10 hover:bg-[#C5133D] hover:text-white transition"
+              >
                 <FaTwitter className="h-5 w-5" />
               </a>
             </div>
           </div>
         </div>
 
-        {/* RIGHT SIDE RECTANGLE (BLANK) */}
-        <div className="rounded-xl border border-[#C5133D]/40 bg-gradient-to-br from-[#0D0D0D] via-[#0D0D0D] to-[#0D0D0D] p-10">
-          {/* Empty box as requested */}
+        {/* RIGHT SIDE – ANIMATED "CODE" */}
+        <div className="relative flex items-center justify-center rounded-xl">
+          <div className="code-window-large">
+            {/* LINE 1 */}
+            <div className="code-line-large">
+              <span className="code-bar code-pink w-32" style={{ animationDelay: "0s" }} />
+              <span className="code-bar code-pink w-48" style={{ animationDelay: "0.2s" }} />
+            </div>
+
+            {/* LINE 2 */}
+            <div className="code-line-large">
+              <span className="code-bar code-green w-40" style={{ animationDelay: "0.4s" }} />
+              <span className="code-bar code-yellow w-56" style={{ animationDelay: "0.6s" }} />
+            </div>
+
+            {/* LINE 3 */}
+            <div className="code-line-large">
+              <span className="code-bar code-yellow w-52" style={{ animationDelay: "0.8s" }} />
+            </div>
+
+            {/* LINE 4 */}
+            <div className="code-line-large">
+              <span className="code-bar code-white w-64" style={{ animationDelay: "1.0s" }} />
+              <span className="code-bar code-white code-dot w-4" style={{ animationDelay: "1.2s" }} />
+            </div>
+
+            {/* LINE 5 */}
+            <div className="code-line-large">
+              <span className="code-bar code-pink w-48" style={{ animationDelay: "1.4s" }} />
+              <span className="code-bar code-yellow w-32" style={{ animationDelay: "1.6s" }} />
+            </div>
+
+            {/* LINE 6 */}
+            <div className="code-line-large">
+              <span className="code-bar code-green w-56" style={{ animationDelay: "1.8s" }} />
+            </div>
+            {/* LINE 7 — NEW */}
+            <div className="code-line-large">
+              <span className="code-bar code-pink w-60" style={{ animationDelay: "2.0s" }} />
+              <span className="code-bar code-yellow w-40" style={{ animationDelay: "2.2s" }} />
+            </div>
+
+            {/* LINE 8 — NEW */}
+            <div className="code-line-large">
+              <span className="code-bar code-green w-44" style={{ animationDelay: "2.4s" }} />
+            </div>
+
+            {/* LINE 9 — NEW */}
+            <div className="code-line-large">
+              <span className="code-bar code-white w-52" style={{ animationDelay: "2.6s" }} />
+              <span className="code-bar code-white w-16" style={{ animationDelay: "2.8s" }} />
+            </div>
+          </div>
         </div>
+
+        {/* Scoped styles for the animation */}
+        <style jsx>{`
+          .code-window-large {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between; /* evenly distributes all 9 lines */
+            background: radial-gradient(circle at top left, #2c1e28 0, #1f1d1dff 55%);
+            padding: 2.5rem;
+            border-radius: 1.25rem;
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.55);
+          }
+
+          .code-line-large {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            flex-grow: 1;          /* Makes all lines equal height */
+          }
+
+          .code-bar {
+            height: 1rem;
+            border-radius: 999px;
+            transform-origin: left;
+            animation: codeType 5s ease-in-out infinite;
+            opacity: 0;
+          }
+
+          .code-dot {
+            width: 0.9rem;
+            height: 0.9rem;
+          }
+
+          .code-pink   { background: #ff2b7a; }
+          .code-green  { background: #7ee35c; }
+          .code-yellow { background: #f7dd72; }
+          .code-white  { background: #fefdf6; }
+
+          @keyframes codeType {
+            0%   { transform: scaleX(0); opacity: 0; }
+            20%  { transform: scaleX(1); opacity: 1; }
+            70%  { transform: scaleX(1); opacity: 1; }
+            100% { transform: scaleX(1); opacity: 0; }
+          }
+        `}</style>
       </div>
     </section>
   );
