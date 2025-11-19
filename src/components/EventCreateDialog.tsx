@@ -11,7 +11,6 @@ import {
   CheckCircle,
   Upload,
 } from 'lucide-react';
-import type { EventItem } from '@/lib/types';
 import { createEvent, uploadEventBanner } from '@/lib/events';
 import { HttpError } from '@/lib/api';
 
@@ -169,7 +168,7 @@ export default function EventCreateDialog({ open, onClose }: Props) {
       const imageUrl = await uploadEventBanner(imageFile);
 
       // 2) Crear el evento en la API
-      const created = await createEvent({
+      await createEvent({
         title: title.trim(),
         starts_at: new Date(startsAtLocal).toISOString(),
         ends_at: new Date(endsAtLocal).toISOString(),
