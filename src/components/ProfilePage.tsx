@@ -46,9 +46,12 @@ const MONTHS = [
 
 // Example programs; replace with your real catalog
 const PROGRAMS = [
-  "Ingeniería en IA",
-  "Ingeniería en Computación",
-  "Matemáticas",
+  "Ingeniería en Inteligencia Artificial",
+  "Ingeniería Mecatrónica",
+  "Ingeniería Industrial e Innovación de Negocios",
+  "Ingeniería Bioelectrónica",
+  "Ingeniería en Innovación y Diseño",
+  "Ingeniería en Energía y Sistemas Inteligentes",
   "Otra",
 ];
 
