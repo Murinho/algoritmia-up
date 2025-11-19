@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { signupLocal } from "@/lib/auth";
 import { HttpError } from "@/lib/api";
 
@@ -234,7 +235,6 @@ function isValidDate(yyyy: number, mm: number, dd: number) {
   return dt.getFullYear() === yyyy && dt.getMonth() === mm - 1 && dt.getDate() === dd;
 }
 
-// Good default: use env base URL if set; otherwise fall back to relative calls
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/+$/, "") || "";
 
@@ -257,11 +257,9 @@ export default function SignUp() {
   const [submitting, setSubmitting] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  // NEW: auth guard state
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [authMessage, setAuthMessage] = useState<string | null>(null);
 
-  // NEW: Check if there is already an active session; if so, block signup
   useEffect(() => {
     let cancelled = false;
 
@@ -275,18 +273,15 @@ export default function SignUp() {
         if (cancelled) return;
 
         if (res.ok) {
-          // User already logged in → do not show SignUp, redirect instead
           setAuthMessage("Ya tienes una sesión activa. Redirigiendo a tu perfil…");
           redirectTimer.current = setTimeout(() => {
             router.replace("/perfil");
           }, 900);
         } else {
-          // Not authenticated → allow signup form
           setAuthMessage(null);
         }
       } catch {
         if (!cancelled) {
-          // Treat network error as "not logged in" and allow signup
           setAuthMessage(null);
         }
       } finally {
@@ -302,7 +297,7 @@ export default function SignUp() {
 
   const disabled = submitting;
 
-    const onSubmit: React.FormEventHandler<HTMLFormElement> = async (e) => {
+  const onSubmit: React.FormEventHandler<HTMLFormElement> = async (e) => {
     e.preventDefault();
     if (submitting) return;
     setSuccessMsg(null);
@@ -326,6 +321,7 @@ export default function SignUp() {
     const gradYear = Number(fd.get("gradYear"));
     const password = String(fd.get("password") || "");
     const country = String(fd.get("country") || "");
+    const acceptedPrivacy = fd.get("acceptedPrivacy") === "on"; // ⬅️ NEW
 
     const nextErrors: Record<string, string> = {};
 
@@ -361,7 +357,10 @@ export default function SignUp() {
       nextErrors.password = "8–20 caracteres, 1 mayúscula, 1 símbolo, 1 dígito";
     }
 
-    // If there are client-side errors, stop here
+    if (!acceptedPrivacy) {
+      nextErrors.privacy = "Debes leer y aceptar el aviso de privacidad";
+    }
+
     if (Object.keys(nextErrors).length > 0) {
       setErrors(nextErrors);
       return;
@@ -400,10 +399,7 @@ export default function SignUp() {
       console.error("Signup error object:", err);
 
       if (err instanceof HttpError) {
-        // Try to use backend's `detail` if present, otherwise generic message
         const detail = err.message;
-
-        // If backend is specifically complaining about Codeforces, attach to that field
         if (detail && detail.toLowerCase().includes("codeforces")) {
           setErrors({ codeforces: detail });
         } else {
@@ -421,10 +417,9 @@ export default function SignUp() {
     }
   };
 
-  // ===== Early guard UI =====
   if (checkingAuth) {
     return (
-      <div className="grid min-h-[100svh] place-items-center bg-gradient-to-br from-[#0D0D0D] via-[#2c1e28] to-[#C5133D]">
+      <div className="grid min-h[100svh] place-items-center bg-gradient-to-br from-[#0D0D0D] via-[#2c1e28] to-[#C5133D]">
         <div className="rounded-xl border border-white/15 bg-white/10 px-6 py-4 text-white/90 backdrop-blur">
           Verificando sesión…
         </div>
@@ -442,7 +437,6 @@ export default function SignUp() {
     );
   }
 
-  // ===== Normal SignUp UI (only when NOT logged in) =====
   return (
     <section
       aria-labelledby="signup-title"
@@ -693,7 +687,7 @@ export default function SignUp() {
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div>
                 <label htmlFor="codeforces" className="text-white">
-                  Codeforces handle 
+                  Codeforces handle
                 </label>
                 <input
                   id="codeforces"
@@ -760,10 +754,35 @@ export default function SignUp() {
               <div className="hidden md:block" />
             </div>
 
+            {/* Privacy notice checkbox */}
+            <div className="mt-2 flex items-start gap-2 text-sm text-white/80">
+              <input
+                id="acceptedPrivacy"
+                name="acceptedPrivacy"
+                type="checkbox"
+                className="mt-1 h-4 w-4 rounded border-white/30 bg-white/10 text-[#C5133D] focus:ring-[#C5133D]"
+              />
+              <label htmlFor="acceptedPrivacy" className="leading-snug">
+                He leído y acepto el{" "}
+                <Link
+                  href="/privacidad"
+                  className="underline text-amber-200 hover:text-white"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Aviso de Privacidad
+                </Link>
+                .
+              </label>
+            </div>
+            {errors.privacy && (
+              <p className="mt-1 text-xs text-red-300">{errors.privacy}</p>
+            )}
+
             <button
               type="submit"
               disabled={disabled}
-              className="ml-auto mt-2 inline-flex items-center justify-center rounded-2xl bg-[#C5133D] px-4 py-2 font-medium text-white transition hover:bg-[#a01032] disabled:opacity-60"
+              className="ml-auto mt-4 inline-flex items-center justify-center rounded-2xl bg-[#C5133D] px-4 py-2 font-medium text-white transition hover:bg-[#a01032] disabled:opacity-60"
             >
               {submitting ? "Enviando…" : "Crear cuenta"}
             </button>
