@@ -71,26 +71,23 @@ A lightweight FastAPI server lives in `Api/algoritmia-api.py`.
   - `POST http://localhost:8000/init` (runs one-time init; accepts `?force=true` to re-run)
   - `GET http://localhost:8000/init/status`
 
+- Test endpoints (Powershell):
+  - Invoke-RestMethod -Method POST -Uri "http://127.0.0.1:8000/init"
+
 Environment:
-- Set `DATABASE_URL` to your PostgreSQL connection string (e.g. `postgresql://user:password@localhost:5432/mydb`).
+- Set the following environment variables in your settings.json file located in File tab -> Preferences -> Settings -> Features -> Terminal -> Integrated -> Env: Windows:
+  - "NEXT_PUBLIC_API_BASE_URL": "http://localhost:8000",
+  - "DATABASE_URL": "postgresql://user:password@localhost:5432/mydb",
+  - "SMTP_HOST": "smtp.gmail.com",
+  - "SMTP_PORT": "587",
+  - "SMTP_USER": "algoritmiaup@gmail.com",
+  - "SMTP_PASS": "noflfouwknsbpdak",
+  - "FROM_EMAIL": "Algoritmia UP <algoritmiaup@gmail.com>",
+  - "FRONTEND_BASE_URL": "http://localhost:3000",
+
   The `POST /init` endpoint will create the `public.leaderboard` table if it does not exist.
 
 The API enables CORS for `http://localhost:3000` by default so the Next.js app can call it during development.
 
-curl -i "http://127.0.0.1:8000/users" \
-  -H "Content-Type: application/json" \
-  --data-binary @- <<'JSON'
-{
-  "full_name": "Adrián Muro Garduño",
-  "email": "adrian@up.edu.mx",
-  "codeforces_handle": "adrianmuro",
-  "birthdate": "2002-10-09",
-  "degree_program": "Ingeniería en IA",
-  "entry_year": 2021,
-  "country": "Mexico",
-  "password": "1Qwerty$"
-  "profile_image_url": "https://example.com/avatar.png"
-}
-JSON
 
 
