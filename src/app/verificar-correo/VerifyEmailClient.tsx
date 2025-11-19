@@ -9,6 +9,11 @@ const API_BASE =
 
 type Status = "idle" | "verifying" | "success" | "error";
 
+type ApiBody = {
+  detail?: string;
+  message?: string;
+};
+
 export default function VerifyEmailClient() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -42,17 +47,19 @@ export default function VerifyEmailClient() {
           }
         );
 
-        let body: any = null;
+        let body: unknown = null;
         try {
           body = await res.json();
         } catch {
-          // ignore JSON parse errors, we'll fall back to generic messages
+          // ignore JSON parse errors; we'll fallback to generic messages
         }
+
+        const typedBody = (body ?? {}) as ApiBody;
 
         if (!res.ok) {
           const detail =
-            body?.detail ||
-            body?.message ||
+            typedBody.detail ||
+            typedBody.message ||
             "El enlace de verificación no es válido o ha expirado.";
           setStatus("error");
           setMessage(detail);
@@ -60,7 +67,8 @@ export default function VerifyEmailClient() {
         }
 
         const apiMessage: string =
-          body?.message || "Correo verificado correctamente. Ya puedes iniciar sesión.";
+          typedBody.message ||
+          "Correo verificado correctamente. Ya puedes iniciar sesión.";
         setStatus("success");
         setMessage(apiMessage);
       } catch (err: unknown) {
