@@ -389,7 +389,7 @@ export default function SignUp() {
       setSubmitting(true);
       await signupLocal(payload);
 
-      setSuccessMsg("¡Cuenta creada! Redirigiendo a inicio de sesión…");
+      setSuccessMsg("¡Cuenta creada! Revisa tu correo para confirmar tu cuenta antes de iniciar sesión.");
       form.reset();
       setErrors({});
 
