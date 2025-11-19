@@ -5,15 +5,21 @@ from typing import Optional
 
 from fastapi import Response, Request, Depends, Cookie
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, BackgroundTasks
 from pydantic import BaseModel, EmailStr, Field
 from passlib.hash import argon2
 import secrets, hashlib, string, re
 import json
 import urllib.request
 import urllib.error
+import os
+import logging
 
 from .. import db
+from ..email_utils import send_email 
+
+FRONTEND_BASE_URL = os.getenv("FRONTEND_BASE_URL", "https://algoritmia.up.edu.mx")
+logger = logging.getLogger("auth")
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -21,13 +27,6 @@ SESSION_COOKIE_NAME = "sid"
 SESSION_COOKIE_AGE = 60 * 60 * 24  # one day in seconds
 
 CF_HANDLE_RE = re.compile(r"^[A-Za-z0-9_\-]{1,24}$")
-
-def _hash_token(raw: str) -> str:
-    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
-
-def _new_session_token() -> tuple[str, str]:
-    raw = secrets.token_urlsafe(32)
-    return raw, _hash_token(raw)
 
 DDL_SESSIONS = """
 CREATE TABLE IF NOT EXISTS sessions (
@@ -83,6 +82,23 @@ class Login(BaseModel):
     create_session: bool = True
     ttl_minutes: int = 60 * 24
 
+class ResetPasswordPayload(BaseModel):
+    token: str
+    new_password: str = Field(min_length=8)
+
+class RequestPasswordReset(BaseModel):
+    email: EmailStr
+
+class ResetPasswordPayload(BaseModel):
+    token: str
+    new_password: str = Field(min_length=8)
+
+def _hash_token(raw: str) -> str:
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+def _new_session_token() -> tuple[str, str]:
+    raw = secrets.token_urlsafe(32)
+    return raw, _hash_token(raw)
 
 def _validate_password_strength(pw: str) -> None:
     """
@@ -153,6 +169,55 @@ def _validate_codeforces_handle_exists(handle: str) -> None:
             status_code=422,
             detail=f"El usuario de Codeforces '{handle}' no existe.",
         )
+    
+def _send_password_reset_email(to_email: str, reset_url: str) -> None:
+    subject = "Restablecer contraseña - Algoritmia UP"
+
+    text_body = f"""Hola,
+
+Recibimos una solicitud para restablecer la contraseña de tu cuenta de Algoritmia UP.
+
+Para continuar, haz clic en el siguiente enlace (o cópialo en tu navegador):
+
+{reset_url}
+
+Si tú no solicitaste este cambio, puedes ignorar este correo.
+
+Saludos,
+Equipo Algoritmia UP
+"""
+
+    html_body = f"""\
+<html>
+  <body style="font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background-color:#f5f5f5; padding:24px;">
+    <div style="max-width:480px; margin:0 auto; background:white; padding:24px; border-radius:12px;">
+      <h2 style="margin-top:0; color:#C5133D;">Restablecer tu contraseña</h2>
+      <p>Hola,</p>
+      <p>Recibimos una solicitud para restablecer la contraseña de tu cuenta de <strong>Algoritmia UP</strong>.</p>
+      <p>Haz clic en el siguiente botón para continuar:</p>
+      <p style="text-align:center; margin:24px 0;">
+        <a href="{reset_url}"
+           style="background-color:#C5133D; color:white; padding:12px 24px; border-radius:999px; text-decoration:none; font-weight:600;">
+          Restablecer contraseña
+        </a>
+      </p>
+      <p style="font-size:14px; color:#555;">
+        Si el botón no funciona, copia y pega este enlace en tu navegador:<br/>
+        <a href="{reset_url}" style="color:#C5133D;">{reset_url}</a>
+      </p>
+      <p style="font-size:12px; color:#777; margin-top:24px;">
+        Si tú no solicitaste este cambio, puedes ignorar este correo.
+      </p>
+      <p style="font-size:12px; color:#777;">
+        — Equipo Algoritmia UP
+      </p>
+    </div>
+  </body>
+</html>
+"""
+    send_email(to_email=to_email, subject=subject, text_body=text_body, html_body=html_body)
+
+
 
 def get_current_user(request: Request):
     # read cookie
@@ -407,3 +472,178 @@ def login(payload: Login, response: Response):
     result["user"] = user
 
     return result
+
+@router.post("/request-password-reset")
+def request_password_reset(payload: RequestPasswordReset, background_tasks: BackgroundTasks):
+    """
+    User provides email. We:
+
+    - Look up the local identity.
+    - Generate a single-use reset token.
+    - Store token_hash in password_reset_tokens with TTL (e.g. 30 min).
+    - Send email containing the *raw* token in a link to the frontend.
+
+    Response is always 200 + generic message to avoid user enumeration.
+    """
+    email_str = str(payload.email).lower()
+
+    # Generic success message (same even if user doesn't exist)
+    generic_msg = {
+        "ok": True,
+        "message": "Si existe una cuenta asociada a este correo, hemos enviado un enlace para restablecer la contraseña.",
+    }
+
+    with db.connect() as conn:
+        # 1) Find local identity
+        ident = db.fetchone(
+            conn,
+            """
+            SELECT ai.id, ai.user_id, ai.provider, ai.email, u.full_name
+            FROM auth_identities ai
+            JOIN users u ON u.id = ai.user_id
+            WHERE ai.provider='local' AND ai.email=%s
+            """,
+            [email_str],
+        )
+
+        # If no identity, don't reveal that → return generic success
+        if not ident:
+            return generic_msg
+
+        user_id = ident["user_id"]
+
+        # 2) Generate token (raw + hashed)
+        raw_token = secrets.token_urlsafe(32)
+        token_hash = _hash_token(raw_token)
+
+        # Optional: invalidate older tokens for this user
+        # (so only the latest link works)
+        db.execute(
+            conn,
+            """
+            UPDATE password_reset_tokens
+            SET used_at = NOW()
+            WHERE user_id = %s AND used_at IS NULL AND expires_at > NOW()
+            """,
+            [user_id],
+        )
+
+        # 3) Insert new token with TTL (e.g. 30 minutes)
+        ttl_minutes = 30
+        expires_at = datetime.utcnow() + timedelta(minutes=ttl_minutes)
+
+        db.execute(
+            conn,
+            """
+            INSERT INTO password_reset_tokens (user_id, token_hash, expires_at)
+            VALUES (%s, %s, %s)
+            """,
+            [user_id, token_hash, expires_at],
+        )
+
+        conn.commit()
+
+    reset_url = f"{FRONTEND_BASE_URL}/reiniciar-contrasena?token={raw_token}"
+
+    # Send email in background
+    background_tasks.add_task(_send_password_reset_email, email_str, reset_url)
+
+    return generic_msg
+
+
+@router.post("/reset-password")
+def reset_password(payload: ResetPasswordPayload):
+    """
+    Reset a user's password using a one-time reset token.
+
+    Expects:
+      - token: raw reset token from the email link
+      - new_password: new password (validated for strength)
+    """
+    # 1) validate strength
+    _validate_password_strength(payload.new_password)
+
+    token_hash = _hash_token(payload.token)
+
+    with db.connect() as conn:
+        try:
+            # 2) look up valid, unused, non-expired reset token
+            reset_row = db.fetchone(
+                conn,
+                """
+                SELECT *
+                FROM password_reset_tokens
+                WHERE token_hash = %s
+                  AND used_at IS NULL
+                  AND expires_at > NOW()
+                """,
+                [token_hash],
+            )
+
+            if not reset_row:
+                raise HTTPException(
+                    status_code=400,
+                    detail="El enlace de recuperación no es válido o ha expirado.",
+                )
+
+            user_id = reset_row["user_id"]
+
+            # 3) ensure local identity exists
+            ident = db.fetchone(
+                conn,
+                """
+                SELECT id
+                FROM auth_identities
+                WHERE user_id = %s AND provider = 'local'
+                """,
+                [user_id],
+            )
+            if not ident:
+                raise HTTPException(
+                    status_code=400,
+                    detail="No existe una cuenta local asociada a este usuario.",
+                )
+
+            # 4) hash new password & update
+            new_hash = argon2.hash(payload.new_password)
+            db.execute(
+                conn,
+                "UPDATE auth_identities SET password_hash = %s WHERE id = %s",
+                [new_hash, ident["id"]],
+            )
+
+            # 5) mark this token as used
+            db.execute(
+                conn,
+                """
+                UPDATE password_reset_tokens
+                SET used_at = NOW()
+                WHERE id = %s AND used_at IS NULL
+                """,
+                [reset_row["id"]],
+            )
+
+            # 6) revoke all active sessions for this user (recommended)
+            db.execute(
+                conn,
+                """
+                UPDATE sessions
+                SET revoked_at = NOW()
+                WHERE user_id = %s AND revoked_at IS NULL
+                """,
+                [user_id],
+            )
+
+            conn.commit()
+
+        except HTTPException:
+            conn.rollback()
+            raise
+        except Exception:
+            conn.rollback()
+            raise HTTPException(
+                status_code=500,
+                detail="Error interno al restablecer la contraseña.",
+            )
+
+    return {"ok": True}
