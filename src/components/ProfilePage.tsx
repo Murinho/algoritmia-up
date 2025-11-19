@@ -46,9 +46,12 @@ const MONTHS = [
 
 // Example programs; replace with your real catalog
 const PROGRAMS = [
-  "Ingeniería en IA",
-  "Ingeniería en Computación",
-  "Matemáticas",
+  "Ingeniería en Inteligencia Artificial",
+  "Ingeniería Mecatrónica",
+  "Ingeniería Industrial e Innovación de Negocios",
+  "Ingeniería Bioelectrónica",
+  "Ingeniería en Innovación y Diseño",
+  "Ingeniería en Energía y Sistemas Inteligentes",
   "Otra",
 ];
 
@@ -249,7 +252,7 @@ const COUNTRIES: Array<{ code: string; name: string }> = [
 ];
 
 
-function yearsRange(from = 1980, to = new Date().getFullYear() + 8) {
+function yearsRange(from = 1950, to = new Date().getFullYear() + 8) {
   const arr: string[] = [];
   for (let y = to; y >= from; y--) arr.push(String(y));
   return arr;
@@ -286,15 +289,15 @@ export default function ProfilePage() {
     []
   );
   const BIRTH_YEARS = useMemo(
-    () => yearsRange(1980, new Date().getFullYear() - 10),
+    () => yearsRange(1950, new Date().getFullYear() - 10),
     []
   );
   const UNI_YEARS = useMemo(
-    () => yearsRange(2005, new Date().getFullYear() + 1),
+    () => yearsRange(1990, new Date().getFullYear() + 1),
     []
   );
   const GRAD_YEARS = useMemo(
-    () => yearsRange(2008, new Date().getFullYear() + 8),
+    () => yearsRange(1990, new Date().getFullYear() + 8),
     []
   );
 

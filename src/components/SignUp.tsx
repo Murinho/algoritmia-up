@@ -241,11 +241,11 @@ const API_BASE =
 export default function SignUp() {
   const currentYear = new Date().getFullYear();
   const birthYears = useMemo(
-    () => Array.from({ length: 60 }, (_, i) => String(currentYear - i - 15)),
+    () => Array.from({ length: 75 }, (_, i) => String(currentYear - i - 5)),
     [currentYear]
   );
   const uniYears = useMemo(
-    () => Array.from({ length: 20 }, (_, i) => String(currentYear - 5 + i)),
+    () => Array.from({ length: 50 }, (_, i) => String(currentYear - 35 + i)),
     [currentYear]
   );
   const days = Array.from({ length: 31 }, (_, i) => String(i + 1).padStart(2, "0"));
