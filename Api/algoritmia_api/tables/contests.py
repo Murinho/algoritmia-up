@@ -84,6 +84,7 @@ def list_contests(
     platform: Optional[str] = None,
     season: Optional[str] = None,
     upcoming_only: bool = Query(False),
+    auth_ctx = Depends(get_current_user), # ensure only logged-in users, don't remove!
 ):
     base = "SELECT * FROM contests"
     clauses = []
@@ -109,7 +110,10 @@ def list_contests(
 
 
 @router.get("/{contest_id}")
-def get_contest(contest_id: int):
+def get_contest(
+    contest_id: int, 
+    auth_ctx = Depends(get_current_user) # ensure only logged-in users, don't remove!
+):
     with db.connect() as conn:
         row = db.fetchone(conn, "SELECT * FROM contests WHERE id=%s", [contest_id])
     if not row:
