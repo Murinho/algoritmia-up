@@ -46,7 +46,7 @@ export async function updateResource(
   resourceId: string,
   data: {
     title?: string;
-    type ?: string;
+    type?: string;
     url?: string;
     tags?: string[];
     difficulty?: Difficulty;
@@ -63,17 +63,29 @@ export async function updateResource(
   });
 
   if (!res.ok) {
-    let detail = 'No se pudo actualizar el recurso.';
+    let detail = "No se pudo actualizar el recurso.";
+    let errorBody: unknown = null;
+
     try {
-      const json = await res.json();
-      if (json?.detail) detail = json.detail;
+      const json: unknown = await res.json();
+      errorBody = json;
+
+      if (json && typeof json === "object" && "detail" in json) {
+        const withDetail = json as { detail?: unknown };
+        if (typeof withDetail.detail === "string") {
+          detail = withDetail.detail;
+        }
+      }
     } catch {
       // ignore JSON parse errors
     }
-    throw new HttpError(res.status, detail);
+
+    const err = new HttpError(res.status, detail, errorBody);
+    throw err;
   }
 
-  return res.json();
+  const json = (await res.json()) as ApiResourceRow;
+  return toUiResource(json);
 }
 
 export async function deleteResource(resourceId: string): Promise<{ deleted: boolean }> {
@@ -83,14 +95,24 @@ export async function deleteResource(resourceId: string): Promise<{ deleted: boo
   });
 
   if (!res.ok) {
-    let detail = 'No se pudo eliminar el recurso.';
+    let detail = "No se pudo eliminar el recurso.";
+    let errorBody: unknown = null;
+
     try {
-      const json = await res.json();
-      if (json?.detail) detail = json.detail;
+      const json: unknown = await res.json();
+      errorBody = json;
+
+      if (json && typeof json === "object" && "detail" in json) {
+        const withDetail = json as { detail?: unknown };
+        if (typeof withDetail.detail === "string") {
+          detail = withDetail.detail;
+        }
+      }
     } catch {
       // ignore JSON parse errors
     }
-    throw new HttpError(res.status, detail);
+
+    throw new HttpError(res.status, detail, errorBody);
   }
 
   return res.json(); // e.g. { deleted: true }

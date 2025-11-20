@@ -78,6 +78,19 @@ class UserUpdate(BaseModel):
     profile_image_url: Optional[str] = None
     role: Optional[Literal["user", "coach", "admin"]] = None
 
+def _ensure_role(auth_ctx, allowed_roles: set[str]) -> None:
+    """
+    Ensure the current user has one of the allowed roles.
+    allowed_roles: e.g. {"coach", "admin"} or {"admin"}
+    """
+    role = auth_ctx["user"]["role"]
+    if role not in allowed_roles:
+        raise HTTPException(
+            status_code=403,
+            detail="No tienes permisos para realizar esta acción.",
+        )
+
+
 def _validate_entry_before_grad(
     entry_year: int,
     entry_month: int,
@@ -144,7 +157,13 @@ def _validate_codeforces_handle_exists(handle: str) -> None:
         )
 
 @router.get("")
-def list_users(q: Optional[str] = Query(None, description="Search by name or email")):
+def list_users(
+    q: Optional[str] = Query(None, description="Search by name or email"),
+    auth_ctx = Depends(get_current_user),
+):
+    # Only coaches/admins can list the whole user base
+    _ensure_role(auth_ctx, {"admin"})
+
     sql = "SELECT * FROM users"
     params = []
     if q:
@@ -157,17 +176,38 @@ def list_users(q: Optional[str] = Query(None, description="Search by name or ema
     return {"items": rows}
 
 
-@router.get("/{user_id}")
-def get_user(user_id: int):
+@router.get("/public-leaderboard")
+def get_public_leaderboard_users():
+    """
+    Public endpoint used by the Codeforces leaderboard.
+    Returns only the minimal fields needed, WITHOUT email or role.
+    """
     with db.connect() as conn:
-        row = db.fetchone(conn, "SELECT * FROM users WHERE id=%s", [user_id])
-    if not row:
-        raise HTTPException(status_code=404, detail="User not found")
-    return row
+        rows = db.fetchall(
+            conn,
+            """
+            SELECT
+                id,
+                full_name,
+                codeforces_handle,
+                country,
+                profile_image_url
+            FROM users
+            WHERE codeforces_handle IS NOT NULL
+            ORDER BY created_at DESC
+            """
+        )
+    return {"items": rows}
 
 
 @router.get("/by-email")
-def get_user_by_email(email: EmailStr):
+def get_user_by_email(
+    email: EmailStr,
+    auth_ctx = Depends(get_current_user),
+):
+    # Only admins can look up arbitrary users by email
+    _ensure_role(auth_ctx, {"admin"})
+
     with db.connect() as conn:
         row = db.fetchone(conn, "SELECT * FROM users WHERE email=%s", [str(email)])
     if not row:
@@ -176,7 +216,13 @@ def get_user_by_email(email: EmailStr):
 
 
 @router.post("")
-def create_user(payload: UserCreate):
+def create_user(
+    payload: UserCreate,
+    auth_ctx = Depends(get_current_user),
+):
+    # Only admins can create arbitrary users
+    _ensure_role(auth_ctx, {"admin"})
+
     # birthdate check
     _validate_birthdate_before_today(payload.birthdate)
 
@@ -210,7 +256,7 @@ def create_user(payload: UserCreate):
                 payload.grad_month,
                 payload.country,
                 payload.profile_image_url,
-                payload.role,
+                payload.role,  # safe because only admins reach here
             ],
         )
     return row
@@ -308,13 +354,6 @@ def update_me(
 
     return row
 
-@router.delete("/{user_id}")
-def delete_user(user_id: int):
-    with db.connect() as conn:
-        count = db.execute(conn, "DELETE FROM users WHERE id=%s", [user_id])
-    if count == 0:
-        raise HTTPException(status_code=404, detail="User not found")
-    return {"deleted": True}
 
 @router.post("/me/avatar")
 async def upload_avatar(
@@ -390,6 +429,7 @@ async def upload_avatar(
 
     return {"profile_image_url": updated["profile_image_url"]}
 
+
 @router.delete("/me/avatar")
 def delete_avatar(auth_ctx = Depends(get_current_user)):
     """
@@ -429,3 +469,40 @@ def delete_avatar(auth_ctx = Depends(get_current_user)):
             pass
 
     return {"profile_image_url": None}
+
+
+@router.get("/{user_id}")
+def get_user(
+    user_id: int,
+    auth_ctx = Depends(get_current_user),
+):
+    current = auth_ctx["user"]
+
+    # Allow self OR coach/admin
+    if current["id"] != user_id and current["role"] not in ("coach", "admin"):
+        raise HTTPException(
+            status_code=403,
+            detail="No tienes permiso para ver este usuario.",
+        )
+
+    with db.connect() as conn:
+        row = db.fetchone(conn, "SELECT * FROM users WHERE id=%s", [user_id])
+    if not row:
+        raise HTTPException(status_code=404, detail="User not found")
+    return row
+
+
+@router.delete("/{user_id}")
+def delete_user(
+    user_id: int,
+    auth_ctx = Depends(get_current_user),
+):
+    # Only admins can delete arbitrary users
+    _ensure_role(auth_ctx, {"admin"})
+
+    with db.connect() as conn:
+        count = db.execute(conn, "DELETE FROM users WHERE id=%s", [user_id])
+    if count == 0:
+        raise HTTPException(status_code=404, detail="User not found")
+    return {"deleted": True}
+

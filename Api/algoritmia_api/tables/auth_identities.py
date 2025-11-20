@@ -102,30 +102,74 @@ def _validate_password_strength(pw: str) -> None:
     
 
 @router.get("/")
-def list_auth_identities(user_id: Optional[int] = None):
+def list_auth_identities(
+    user_id: Optional[int] = None,
+    auth_ctx = Depends(get_current_user),
+):
+    """
+    List auth identities.
+
+    - Normal users: can only see their own identities.
+    - Admins: can see all identities, or filter by user_id.
+    """
+    current_user = auth_ctx["user"]
+    current_role = current_user["role"]
+    current_id = current_user["id"]
+
     base = "SELECT * FROM auth_identities"
     params: list = []
+
+    if current_role != "admin":
+        # Non-admins are always restricted to their own identities
+        user_id = current_id
+
     if user_id is not None:
-        base += " WHERE user_id=%s"
+        base += " WHERE user_id = %s"
         params.append(user_id)
+
     base += " ORDER BY created_at DESC LIMIT 200"
+
     with db.connect() as conn:
         rows = db.fetchall(conn, base, params)
+
     return {"items": rows}
 
+
 @router.post("/")
-def create_auth_identity(payload: IdentityCreate):
+def create_auth_identity(
+    payload: IdentityCreate,
+    auth_ctx = Depends(get_current_user),
+):
     """
-    Use this to manually link an identity (e.g., after OAuth completes).
-    For 'local', you MUST provide email + password (CHECK constraint also enforces this).
+    Create/link an identity.
+
+    - Non-admins: can only create identities for themselves.
+    - Admins: can create identities for any user_id.
     """
+    current_user = auth_ctx["user"]
+    current_role = current_user["role"]
+    current_id = current_user["id"]
+
+    target_user_id = payload.user_id or current_id
+
+    # Enforce self-only for non-admins
+    if current_role != "admin" and target_user_id != current_id:
+        raise HTTPException(
+            status_code=403,
+            detail="Solo un administrador puede crear identidades para otros usuarios.",
+        )
+
     if payload.provider == "local":
         if not payload.email or not payload.password:
-            raise HTTPException(status_code=422, detail="Local identity requires email and password")
-        # For local, keep provider_uid as NULL (works with partial unique)
+            raise HTTPException(
+                status_code=422,
+                detail="Local identity requires email and password",
+            )
         pwd_hash = argon2.hash(payload.password)
+        provider_uid = None  # enforce NULL for local
     else:
         pwd_hash = None
+        provider_uid = payload.provider_uid
 
     try:
         with db.connect() as conn:
@@ -133,13 +177,13 @@ def create_auth_identity(payload: IdentityCreate):
                 conn,
                 """
                 INSERT INTO auth_identities(user_id, provider, provider_uid, email, password_hash)
-                VALUES (%s,%s,%s,%s,%s)
+                VALUES (%s, %s, %s, %s, %s)
                 RETURNING id, user_id, provider, provider_uid, email, created_at
                 """,
                 [
-                    payload.user_id,
+                    target_user_id,
                     payload.provider,
-                    payload.provider_uid,  # keep None for 'local'
+                    provider_uid,
                     str(payload.email) if payload.email else None,
                     pwd_hash,
                 ],
@@ -147,7 +191,6 @@ def create_auth_identity(payload: IdentityCreate):
         return row
     except Exception as e:
         msg = str(e).lower()
-        # Map uniques to clean 409s
         if "auth_identities_user_provider_uq" in msg:
             raise HTTPException(status_code=409, detail="User already has an identity for this provider")
         if "auth_identities_local_email_uq" in msg:
@@ -155,6 +198,7 @@ def create_auth_identity(payload: IdentityCreate):
         if "auth_identities_provider_uid_uq" in msg:
             raise HTTPException(status_code=409, detail="This provider identity already exists")
         raise
+
 
 @router.patch("/me/password")
 def change_my_password(
@@ -164,17 +208,60 @@ def change_my_password(
     user = auth_ctx["user"]
     user_id = user["id"]
 
-    # Basic backend-side validation
     if len(payload.new_password) < 8:
         raise HTTPException(
             status_code=422,
             detail="La nueva contraseña debe tener al menos 8 caracteres.",
         )
 
-    # NEW: strength validation
     _validate_password_strength(payload.new_password)
 
     with db.connect() as conn:
-        ...
-        # (rest of your existing logic stays the same)
+        identity = db.fetchone(
+            conn,
+            """
+            SELECT id, provider, password_hash
+            FROM auth_identities
+            WHERE user_id = %s AND provider = 'local'
+            """,
+            [user_id],
+        )
+
+        if not identity:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Tu cuenta no tiene una contraseña local configurada. "
+                    "Inicia sesión con tu proveedor (Google, GitHub, etc.) "
+                    "o configura primero una contraseña local."
+                ),
+            )
+
+        if not identity["password_hash"]:
+            raise HTTPException(
+                status_code=400,
+                detail="Tu cuenta no usa contraseña local.",
+            )
+
+        if not argon2.verify(payload.current_password, identity["password_hash"]):
+            raise HTTPException(
+                status_code=401,
+                detail="La contraseña actual no es correcta.",
+            )
+
+        if argon2.verify(payload.new_password, identity["password_hash"]):
+            raise HTTPException(
+                status_code=422,
+                detail="La nueva contraseña no puede ser igual a la actual.",
+            )
+
+        new_hash = argon2.hash(payload.new_password)
+
+        db.execute(
+            conn,
+            "UPDATE auth_identities SET password_hash = %s WHERE id = %s",
+            [new_hash, identity["id"]],
+        )
+
+    return {"ok": True}
 

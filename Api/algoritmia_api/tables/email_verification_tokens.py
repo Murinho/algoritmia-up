@@ -1,11 +1,11 @@
 from datetime import datetime, timedelta
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 
 from .. import db
-
+from .auth import get_current_user
 
 router = APIRouter(prefix="/email-verification-tokens", tags=["EmailVerificationTokens"])
 
@@ -37,8 +37,42 @@ class EmailTokenCreate(BaseModel):
     token_hash: str
 
 
+def create_email_verification_token_for_user(
+    conn,
+    user_id: int,
+    token_hash: str,
+    ttl_minutes: int = 60,
+):
+    expires_at = datetime.utcnow() + timedelta(minutes=ttl_minutes)
+    row = db.fetchone(
+        conn,
+        """
+        INSERT INTO email_verification_tokens (user_id, token_hash, expires_at)
+        VALUES (%s, %s, %s)
+        RETURNING *
+        """,
+        [user_id, token_hash, expires_at],
+    )
+    return row
+
+
+def _require_admin(auth_ctx = Depends(get_current_user)):
+    """
+    Small helper to enforce that only admins can hit these endpoints.
+    'auth_ctx' is whatever get_current_user returns (likely { "user": ... }).
+    """
+    user = auth_ctx["user"]
+    # Adjust if your role field uses different values
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admins only")
+    return auth_ctx
+
+
 @router.get("")
-def list_email_verification_tokens(user_id: Optional[int] = None):
+def list_email_verification_tokens(
+    user_id: Optional[int] = None,
+    auth_ctx = Depends(_require_admin),
+):
     base = "SELECT * FROM email_verification_tokens"
     params: list = []
     if user_id is not None:
@@ -51,7 +85,10 @@ def list_email_verification_tokens(user_id: Optional[int] = None):
 
 
 @router.post("")
-def create_email_verification_token(payload: EmailTokenCreate):
+def create_email_verification_token(
+    payload: EmailTokenCreate,
+    auth_ctx = Depends(_require_admin),
+):
     expires_at = datetime.utcnow() + timedelta(minutes=payload.ttl_minutes)
     with db.connect() as conn:
         row = db.fetchone(
@@ -66,9 +103,16 @@ def create_email_verification_token(payload: EmailTokenCreate):
 
 
 @router.post("/{token_id}/mark-used")
-def mark_email_token_used(token_id: str):
+def mark_email_token_used(
+    token_id: str,
+    auth_ctx = Depends(_require_admin),
+):
     with db.connect() as conn:
-        row = db.fetchone(conn, "UPDATE email_verification_tokens SET used_at=NOW() WHERE id=%s RETURNING *", [token_id])
+        row = db.fetchone(
+            conn,
+            "UPDATE email_verification_tokens SET used_at=NOW() WHERE id=%s RETURNING *",
+            [token_id],
+        )
     if not row:
         raise HTTPException(status_code=404, detail="Token not found")
     return row

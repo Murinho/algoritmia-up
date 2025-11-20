@@ -38,38 +38,39 @@ export type SignUpPayload = {
   preferred_name: string;
   email: string;
   codeforces_handle: string;
-  birthdate: string;           // "YYYY-MM-DD"
+  birthdate: string;
   degree_program: string;
   entry_year: number;
   entry_month: number;
   grad_year: number;
   grad_month: number;
-  country: string;             // your 2-letter code is fine if that's what you store
-  profile_image_url?: string | null;
+  country: string;
+  profile_image_url: string | null;
   password: string;
 };
 
 export type SignUpResponse = {
-  user: unknown;
-  identity: unknown;
+  user: User;
+  identity: Identity;
+  email_verification_sent: boolean;
 };
 
 export type Platform =
-  | 'Codeforces'
-  | 'Vjudge'
-  | 'Kattis'
-  | 'SPOJ'
-  | 'Leetcode'
-  | 'Atcoder'
-  | 'CSES'
-  | 'HackerRank'
-  | 'Other';
+  | "Codeforces"
+  | "Vjudge"
+  | "Kattis"
+  | "SPOJ"
+  | "Leetcode"
+  | "Atcoder"
+  | "CSES"
+  | "HackerRank"
+  | "Other";
 
-export type ContestFormat = 'ICPC' | 'IOI';
+export type ContestFormat = "ICPC" | "IOI";
 
 export type Difficulty = 1 | 2 | 3 | 4 | 5;
 
-export type UserRole = 'user' | 'coach' | 'admin';
+export type UserRole = "user" | "coach" | "admin";
 
 export type Contest = {
   id: string;
@@ -80,24 +81,24 @@ export type Contest = {
   difficulty: Difficulty;
   format: ContestFormat;
   startsAt: string; // ISO
-  endsAt: string;   // ISO
+  endsAt: string; // ISO
   location: string;
-  season: string;   // e.g. "Fall 2025"
+  season: string; // e.g. "Fall 2025"
   notes?: string;
 };
 
 export type ResourceType =
-  | 'pdf'
-  | 'blog'
-  | 'notebook'
-  | 'link'
-  | 'sheet'
-  | 'slideshow'
-  | 'video'
-  | 'book'
-  | 'repo'
-  | 'article'
-  | 'other';
+  | "pdf"
+  | "blog"
+  | "notebook"
+  | "link"
+  | "sheet"
+  | "slideshow"
+  | "video"
+  | "book"
+  | "repo"
+  | "article"
+  | "other";
 
 export type Resource = {
   id: string;
@@ -121,4 +122,3 @@ export type EventItem = {
   image: string;
   videoCallLink?: string;
 };
-

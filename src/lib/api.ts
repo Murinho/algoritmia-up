@@ -5,61 +5,56 @@ export const API_BASE =
 
 export class HttpError extends Error {
   status: number;
-  body?: unknown;
+  body: unknown;
 
-  constructor(status: number, message: string, body?: unknown) {
+  constructor(status: number, message: string, body: unknown) {
     super(message);
     this.status = status;
     this.body = body;
   }
 }
 
-export async function postJSON<T>(
+// Helper type + function to read detail/message safely
+type JsonLike = { [key: string]: unknown };
+
+function extractErrorDetail(body: unknown, status: number): string {
+  if (body && typeof body === "object") {
+    const obj = body as JsonLike;
+    const detail = obj["detail"];
+    const message = obj["message"];
+
+    if (typeof detail === "string") return detail;
+    if (typeof message === "string") return message;
+  }
+  return `HTTP ${status}`;
+}
+
+export async function postJSON<TResponse, TPayload = unknown>(
   path: string,
-  payload: unknown,
-  init?: RequestInit
-): Promise<T> {
+  body: TPayload
+): Promise<TResponse> {
+  const API_BASE =
+    process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/+$/, "") || "";
+
   const res = await fetch(`${API_BASE}${path}`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers || {}),
-    },
-    body: JSON.stringify(payload),
-    // allow caller to override, but default to include cookies
-    credentials: init?.credentials ?? "include",
-    ...init,
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(body),
   });
 
-  // Read raw text first so we can handle both JSON and non-JSON bodies
-  let raw: string | null = null;
-  try {
-    raw = await res.text();
-  } catch {
-    raw = null;
-  }
-
   let data: unknown = null;
-  if (raw && raw.length > 0) {
-    try {
-      data = JSON.parse(raw);
-    } catch {
-      // not JSON, keep the raw string
-      data = raw;
-    }
+  try {
+    data = await res.json();
+  } catch {
+    // ignore bad/non-JSON responses
   }
 
   if (!res.ok) {
-    let msg = res.statusText || "Request failed";
-
-    if (data && typeof data === "object" && "detail" in data) {
-      // FastAPI-style error: {"detail": "..."}
-      msg = String((data as { detail: unknown }).detail);
-    }
-
-    throw new HttpError(res.status, msg, data);
+    const detail = extractErrorDetail(data, res.status);
+    throw new HttpError(res.status, detail, data);
   }
 
-  // At this point, we **only** return the parsed data (or null if no body).
-  return data as T;
+  // We trust the caller to pick the correct TResponse
+  return data as TResponse;
 }

@@ -47,14 +47,24 @@ export async function createEvent(payload: EventCreatePayload): Promise<EventRow
   });
 
   if (!res.ok) {
-    let detail = 'No se pudo crear el evento.';
+    let detail = "No se pudo crear el evento.";
+    let errorBody: unknown = null;
+
     try {
-      const data = await res.json();
-      if (data?.detail) detail = data.detail;
+      const data: unknown = await res.json();
+      errorBody = data;
+
+      if (data && typeof data === "object" && "detail" in data) {
+        const withDetail = data as { detail?: unknown };
+        if (typeof withDetail.detail === "string") {
+          detail = withDetail.detail;
+        }
+      }
     } catch {
       // ignore JSON parse error
     }
-    throw new HttpError(res.status, detail);
+
+    throw new HttpError(res.status, detail, errorBody);
   }
 
   return (await res.json()) as EventRow;
@@ -85,12 +95,24 @@ export async function updateEvent(
   });
 
   if (!res.ok) {
-    let detail = 'No se pudo actualizar el evento.';
+    let detail = "No se pudo actualizar el evento.";
+    let errorBody: unknown = null;
+
     try {
-      const data = await res.json();
-      if (data?.detail) detail = data.detail;
-    } catch {}
-    throw new HttpError(res.status, detail);
+      const data: unknown = await res.json();
+      errorBody = data;
+
+      if (data && typeof data === "object" && "detail" in data) {
+        const withDetail = data as { detail?: unknown };
+        if (typeof withDetail.detail === "string") {
+          detail = withDetail.detail;
+        }
+      }
+    } catch {
+      // ignore JSON parse error
+    }
+
+    throw new HttpError(res.status, detail, errorBody);
   }
 
   return res.json();
@@ -106,13 +128,26 @@ export async function deleteEvent(eventId: string) {
   });
 
   if (!res.ok) {
-    let detail = 'No se pudo eliminar el evento.';
+    let detail = "No se pudo eliminar el evento.";
+    let errorBody: unknown = null;
+
     try {
-      const data = await res.json();
-      if (data?.detail) detail = data.detail;
-    } catch {}
-    throw new HttpError(res.status, detail);
+      const data: unknown = await res.json();
+      errorBody = data;
+
+      if (data && typeof data === "object" && "detail" in data) {
+        const withDetail = data as { detail?: unknown };
+        if (typeof withDetail.detail === "string") {
+          detail = withDetail.detail;
+        }
+      }
+    } catch {
+      // ignore JSON parse error
+    }
+
+    throw new HttpError(res.status, detail, errorBody);
   }
 
   return res.json(); // { deleted: true }
+
 }

@@ -60,7 +60,11 @@ class ResourceUpdate(BaseModel):
     notes: Optional[str] = None
 
 @router.get("")
-def list_resources(type: Optional[str] = None, difficulty: Optional[str] = None):
+def list_resources(
+    type: Optional[str] = None,
+    difficulty: Optional[str] = None,
+    auth = Depends(get_current_user),  # ensure only logged-in users, don't remove!
+):
     base = """
         SELECT
             r.*,
@@ -88,28 +92,6 @@ def list_resources(type: Optional[str] = None, difficulty: Optional[str] = None)
 
     items = [row_to_resource(row) for row in rows]
     return {"items": items}
-
-
-
-@router.get("/{resource_id}")
-def get_resource(resource_id: int):
-    with db.connect() as conn:
-        row = db.fetchone(
-            conn,
-            """
-            SELECT
-                r.*,
-                u.full_name AS added_by_name
-            FROM resources r
-            LEFT JOIN users u ON r.added_by = u.id
-            WHERE r.id = %s
-            """,
-            [resource_id],
-        )
-    if not row:
-        raise HTTPException(status_code=404, detail="Resource not found")
-    return row_to_resource(row)
-
 
 
 @router.post("")
@@ -165,6 +147,28 @@ def create_resource(payload: ResourceCreate, auth=Depends(get_current_user)):
     return row_to_resource(row)
 
 
+@router.get("/{resource_id}")
+def get_resource(
+    resource_id: int, 
+    auth = Depends(get_current_user) # ensure only logged-in users, don't remove!
+):
+    with db.connect() as conn:
+        row = db.fetchone(
+            conn,
+            """
+            SELECT
+                r.*,
+                u.full_name AS added_by_name
+            FROM resources r
+            LEFT JOIN users u ON r.added_by = u.id
+            WHERE r.id = %s
+            """,
+            [resource_id],
+        )
+    if not row:
+        raise HTTPException(status_code=404, detail="Resource not found")
+    return row_to_resource(row)
+
 
 @router.patch("/{resource_id}")
 def update_resource(resource_id: int, payload: ResourceUpdate, auth=Depends(get_current_user)):
@@ -211,7 +215,7 @@ def update_resource(resource_id: int, payload: ResourceUpdate, auth=Depends(get_
 
 
 @router.delete("/{resource_id}")
-def delete_contest(resource_id: int, auth=Depends(get_current_user)):
+def delete_resource(resource_id: int, auth=Depends(get_current_user)):
     user = auth["user"]
     role = user.get("role")
 

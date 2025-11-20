@@ -1,10 +1,11 @@
 from datetime import datetime, timedelta
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 
 from .. import db
+from .auth import get_current_user  # ⬅ import auth context
 
 
 router = APIRouter(prefix="/password-reset-tokens", tags=["PasswordResetTokens"])
@@ -37,8 +38,26 @@ class PasswordResetTokenCreate(BaseModel):
     token_hash: str
 
 
+def _require_admin(auth_ctx = Depends(get_current_user)):
+    """
+    Ensure the caller is an authenticated admin.
+
+    We keep this helper small and re-use it in all endpoints that must be
+    admin-only. The "system" (backend code) should typically bypass HTTP and
+    call DB helpers or Python functions directly rather than going through
+    these endpoints.
+    """
+    user = auth_ctx["user"]
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admins only")
+    return auth_ctx
+
+
 @router.get("")
-def list_password_reset_tokens(user_id: Optional[int] = None):
+def list_password_reset_tokens(
+    user_id: Optional[int] = None,
+    auth_ctx = Depends(_require_admin),  # ⬅ admin-only
+):
     base = "SELECT * FROM password_reset_tokens"
     params: list = []
     if user_id is not None:
@@ -51,7 +70,10 @@ def list_password_reset_tokens(user_id: Optional[int] = None):
 
 
 @router.post("")
-def create_password_reset_token(payload: PasswordResetTokenCreate):
+def create_password_reset_token(
+    payload: PasswordResetTokenCreate,
+    auth_ctx = Depends(_require_admin),  # ⬅ admin-only
+):
     expires_at = datetime.utcnow() + timedelta(minutes=payload.ttl_minutes)
     with db.connect() as conn:
         row = db.fetchone(
@@ -66,9 +88,16 @@ def create_password_reset_token(payload: PasswordResetTokenCreate):
 
 
 @router.post("/{token_id}/mark-used")
-def mark_password_reset_token_used(token_id: str):
+def mark_password_reset_token_used(
+    token_id: str,
+    auth_ctx = Depends(_require_admin),  # ⬅ admin-only
+):
     with db.connect() as conn:
-        row = db.fetchone(conn, "UPDATE password_reset_tokens SET used_at=NOW() WHERE id=%s RETURNING *", [token_id])
+        row = db.fetchone(
+            conn,
+            "UPDATE password_reset_tokens SET used_at=NOW() WHERE id=%s RETURNING *",
+            [token_id],
+        )
     if not row:
         raise HTTPException(status_code=404, detail="Token not found")
     return row
