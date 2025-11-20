@@ -19,7 +19,10 @@ from .. import db
 from ..email_utils import send_email 
 from .audit_logs import add_audit_log
 
-FRONTEND_BASE_URL = os.getenv("FRONTEND_BASE_URL, https://algoritmia-up.vercel.app")
+FRONTEND_BASE_URL = os.getenv(
+    "FRONTEND_BASE_URL",
+    "https://algoritmia-up.vercel.app",
+)
 logger = logging.getLogger("auth")
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
