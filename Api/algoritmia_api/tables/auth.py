@@ -17,6 +17,7 @@ import logging
 
 from .. import db
 from ..email_utils import send_email 
+from .audit_logs import add_audit_log
 
 FRONTEND_BASE_URL = os.getenv("FRONTEND_BASE_URL", "https://algoritmia.up.edu.mx")
 logger = logging.getLogger("auth")
@@ -303,6 +304,7 @@ def me(current = Depends(get_current_user)):
 @router.post("/logout")
 def logout(response: Response, current = Depends(get_current_user)):
     session = current["session"]
+    user = current["user"]
 
     with db.connect() as conn:
         db.execute(
@@ -317,6 +319,17 @@ def logout(response: Response, current = Depends(get_current_user)):
         conn.commit()
 
     response.delete_cookie(SESSION_COOKIE_NAME, path="/")
+
+    add_audit_log(
+        actor_user_id=user["id"],
+        action="auth.logout",
+        entity_table="sessions",
+        entity_id=session["id"],
+        metadata={
+            "reason": "user_initiated",
+        },
+    )
+
     return {"ok": True}
 
 
@@ -349,13 +362,9 @@ def signup(payload: SignUp, background_tasks: BackgroundTasks):
             detail="La fecha de ingreso debe ser anterior a la fecha de graduación.",
         )
 
-    # 4) password strength
     _validate_password_strength(payload.password)
-
-    # 5) Codeforces handle must exist
     _validate_codeforces_handle_exists(payload.codeforces_handle)
 
-    # --- Existing logic ---
     pwd_hash = argon2.hash(payload.password)
 
     with db.connect() as conn:
@@ -381,7 +390,6 @@ def signup(payload: SignUp, background_tasks: BackgroundTasks):
                 )
 
             # ---- Create user ----
-            # First user in the table becomes 'admin', others become 'user'
             user = db.fetchone(
                 conn,
                 """
@@ -417,7 +425,7 @@ def signup(payload: SignUp, background_tasks: BackgroundTasks):
             )
             user_id = user["id"]
 
-            # ---- Create local identity (no session, no provider_uid) ----
+            # ---- Create local identity ----
             identity = db.fetchone(
                 conn,
                 """
@@ -450,15 +458,26 @@ def signup(payload: SignUp, background_tasks: BackgroundTasks):
                 raise HTTPException(status_code=409, detail="This provider identity already exists")
             raise HTTPException(status_code=500, detail="Internal error during signup")
 
-    # --- NEW: create email verification token + send email ---
-    # raw token (what we send by email) and hashed token (what we store)
+    add_audit_log(
+        actor_user_id=user_id,
+        action="auth.signup",
+        entity_table="users",
+        entity_id=user_id,
+        metadata={
+            "provider": "local",
+            "role": user["role"],
+            "codeforces_handle": user["codeforces_handle"],
+            "email_domain": str(payload.email).split("@", 1)[-1],
+        },
+    )
+
+    # --- Email verification token + email (unchanged) ---
     raw_token = secrets.token_urlsafe(32)
     token_hash = _hash_token(raw_token)
     ttl_hours = 24
     expires_at = datetime.utcnow() + timedelta(hours=ttl_hours)
 
     with db.connect() as conn:
-        # Optional: invalidate older pending tokens for this user
         db.execute(
             conn,
             """
@@ -481,7 +500,6 @@ def signup(payload: SignUp, background_tasks: BackgroundTasks):
 
     verify_url = f"{FRONTEND_BASE_URL}/verificar-correo?token={raw_token}"
 
-    # Send in background so signup response is fast
     background_tasks.add_task(
         _send_email_verification,
         str(payload.email),
@@ -516,13 +534,14 @@ def login(payload: Login, response: Response):
 
     result = {"identity": {k: v for k, v in ident.items() if k != "password_hash"}}
 
+    session_row = None
+
     # 3) optional session
     if payload.create_session:
         now = datetime.utcnow()
         expires_at = now + timedelta(minutes=payload.ttl_minutes)
 
         with db.connect() as conn:
-            # **Single-session policy (BLOCK)**
             active = db.fetchone(
                 conn,
                 """
@@ -558,35 +577,37 @@ def login(payload: Login, response: Response):
         )
         result["session"] = session_row
 
-    # 4) user profile (now includes role)
+    # 4) user profile
     with db.connect() as conn:
         user = db.fetchone(conn, "SELECT * FROM users WHERE id=%s", [ident["user_id"]])
     result["user"] = user
 
+    add_audit_log(
+        actor_user_id=user["id"],
+        action="auth.login",
+        entity_table="sessions" if session_row else None,
+        entity_id=session_row["id"] if session_row else None,
+        metadata={
+            "provider": ident["provider"],
+            "create_session": payload.create_session,
+            "ttl_minutes": payload.ttl_minutes if payload.create_session else None,
+            "email_verified": ident.get("email_verified_at") is not None,
+        },
+    )
+
     return result
+
 
 @router.post("/request-password-reset")
 def request_password_reset(payload: RequestPasswordReset, background_tasks: BackgroundTasks):
-    """
-    User provides email. We:
-
-    - Look up the local identity.
-    - Generate a single-use reset token.
-    - Store token_hash in password_reset_tokens with TTL (e.g. 30 min).
-    - Send email containing the *raw* token in a link to the frontend.
-
-    Response is always 200 + generic message to avoid user enumeration.
-    """
     email_str = str(payload.email).lower()
 
-    # Generic success message (same even if user doesn't exist)
     generic_msg = {
         "ok": True,
         "message": "Si existe una cuenta asociada a este correo, hemos enviado un enlace para restablecer la contraseña.",
     }
 
     with db.connect() as conn:
-        # 1) Find local identity
         ident = db.fetchone(
             conn,
             """
@@ -598,18 +619,15 @@ def request_password_reset(payload: RequestPasswordReset, background_tasks: Back
             [email_str],
         )
 
-        # If no identity, don't reveal that → return generic success
         if not ident:
+            # no log → we don't know whose it would be
             return generic_msg
 
         user_id = ident["user_id"]
 
-        # 2) Generate token (raw + hashed)
         raw_token = secrets.token_urlsafe(32)
         token_hash = _hash_token(raw_token)
 
-        # Optional: invalidate older tokens for this user
-        # (so only the latest link works)
         db.execute(
             conn,
             """
@@ -620,7 +638,6 @@ def request_password_reset(payload: RequestPasswordReset, background_tasks: Back
             [user_id],
         )
 
-        # 3) Insert new token with TTL (e.g. 30 minutes)
         ttl_minutes = 30
         expires_at = datetime.utcnow() + timedelta(minutes=ttl_minutes)
 
@@ -635,9 +652,22 @@ def request_password_reset(payload: RequestPasswordReset, background_tasks: Back
 
         conn.commit()
 
+    # ✅ Audit log
+    add_audit_log(
+        actor_user_id=user_id,
+        action="auth.password_reset.request",
+        entity_table="users",
+        entity_id=user_id,
+        metadata={
+            "ttl_minutes": 30,
+            "provider": "local",
+            # Email is known but you can avoid logging it explicitly:
+            "email_present": True,
+        },
+    )
+
     reset_url = f"{FRONTEND_BASE_URL}/reiniciar-contrasena?token={raw_token}"
 
-    # Send email in background
     background_tasks.add_task(_send_password_reset_email, email_str, reset_url)
 
     return generic_msg
@@ -645,21 +675,12 @@ def request_password_reset(payload: RequestPasswordReset, background_tasks: Back
 
 @router.post("/reset-password")
 def reset_password(payload: ResetPasswordPayload):
-    """
-    Reset a user's password using a one-time reset token.
-
-    Expects:
-      - token: raw reset token from the email link
-      - new_password: new password (validated for strength)
-    """
-    # 1) validate strength
     _validate_password_strength(payload.new_password)
 
     token_hash = _hash_token(payload.token)
 
     with db.connect() as conn:
         try:
-            # 2) look up valid, unused, non-expired reset token
             reset_row = db.fetchone(
                 conn,
                 """
@@ -680,7 +701,6 @@ def reset_password(payload: ResetPasswordPayload):
 
             user_id = reset_row["user_id"]
 
-            # 3) ensure local identity exists
             ident = db.fetchone(
                 conn,
                 """
@@ -696,7 +716,6 @@ def reset_password(payload: ResetPasswordPayload):
                     detail="No existe una cuenta local asociada a este usuario.",
                 )
 
-            # 4) hash new password & update
             new_hash = argon2.hash(payload.new_password)
             db.execute(
                 conn,
@@ -704,7 +723,6 @@ def reset_password(payload: ResetPasswordPayload):
                 [new_hash, ident["id"]],
             )
 
-            # 5) mark this token as used
             db.execute(
                 conn,
                 """
@@ -715,7 +733,6 @@ def reset_password(payload: ResetPasswordPayload):
                 [reset_row["id"]],
             )
 
-            # 6) revoke all active sessions for this user (recommended)
             db.execute(
                 conn,
                 """
@@ -738,15 +755,23 @@ def reset_password(payload: ResetPasswordPayload):
                 detail="Error interno al restablecer la contraseña.",
             )
 
+    # ✅ Audit log
+    add_audit_log(
+        actor_user_id=user_id,
+        action="auth.password_reset.complete",
+        entity_table="users",
+        entity_id=user_id,
+        metadata={
+            "reset_token_id": reset_row["id"],
+            "sessions_revoked": True,
+        },
+    )
+
     return {"ok": True}
 
 
 @router.get("/verify-email", response_model=VerifyEmailResponse)
 def verify_email(token: str):
-    """
-    Verifies a user's email using a one-time verification token.
-    Called from the frontend when the user opens /verificar-correo?token=...
-    """
     token_hash = _hash_token(token)
 
     with db.connect() as conn:
@@ -771,7 +796,6 @@ def verify_email(token: str):
 
             user_id = row["user_id"]
 
-            # Mark token as used
             db.execute(
                 conn,
                 """
@@ -782,7 +806,6 @@ def verify_email(token: str):
                 [row["id"]],
             )
 
-            # Mark email as verified on local identity
             db.execute(
                 conn,
                 """
@@ -804,6 +827,16 @@ def verify_email(token: str):
                 status_code=500,
                 detail="Error interno al verificar el correo.",
             )
+
+    add_audit_log(
+        actor_user_id=user_id,
+        action="auth.email.verify",
+        entity_table="users",
+        entity_id=user_id,
+        metadata={
+            "token_id": row["id"],
+        },
+    )
 
     return VerifyEmailResponse(
         ok=True,
