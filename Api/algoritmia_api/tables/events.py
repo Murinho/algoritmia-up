@@ -11,6 +11,7 @@ from pathlib import Path
 
 from .. import db
 from .auth import get_current_user
+from .audit_logs import add_audit_log
 
 router = APIRouter(prefix="/events", tags=["Events"])
 
@@ -86,9 +87,13 @@ def create_event(
 ):
     user = current["user"]
     role = user.get("role")
+    user_id = user["id"]
 
     if role not in ("coach", "admin"):
         raise HTTPException(status_code=403, detail="Solo coaches o admins pueden crear eventos.")
+
+    if payload.starts_at and payload.ends_at and payload.starts_at >= payload.ends_at:
+        raise HTTPException(status_code=400, detail="starts_at must be before ends_at")
 
     with db.connect() as conn:
         row = db.fetchone(
@@ -115,6 +120,22 @@ def create_event(
                 payload.video_call_link,
             ],
         )
+
+    add_audit_log(
+        actor_user_id=user_id,
+        action="event.create",
+        entity_table="events",
+        entity_id=row["id"],
+        metadata={
+            "title": row["title"],
+            "starts_at": row["starts_at"].isoformat() if row["starts_at"] else None,
+            "ends_at": row["ends_at"].isoformat() if row["ends_at"] else None,
+            "location": row["location"],
+            "has_image": bool(row["image_url"]),
+            "has_video_call_link": bool(row["video_call_link"]),
+        },
+    )
+
     return row
 
 
@@ -125,6 +146,7 @@ def upload_banner(
 ):
     user = current["user"]
     role = user.get("role")
+    user_id = user["id"]
 
     if role not in ("coach", "admin"):
         raise HTTPException(status_code=403, detail="Solo coaches o admins pueden subir banners.")
@@ -142,6 +164,20 @@ def upload_banner(
         shutil.copyfileobj(file.file, buffer)
 
     public_url = f"/static/event_banners/{filename}"
+
+    add_audit_log(
+        actor_user_id=user_id,
+        action="event.banner_upload",
+        entity_table="event_banners",
+        entity_id=None,
+        metadata={
+            "filename": filename,
+            "original_filename": file.filename,
+            "content_type": file.content_type,
+            "public_url": public_url,
+        },
+    )
+
     return {"url": public_url}
 
 
@@ -153,6 +189,8 @@ def update_event(
 ):
     user = current["user"]
     role = user.get("role")
+    user_id = user["id"]
+
     if role not in ("coach", "admin"):
         raise HTTPException(status_code=403, detail="Solo coaches o admins pueden editar eventos.")
 
@@ -170,6 +208,20 @@ def update_event(
         row = db.fetchone(conn, f"UPDATE events SET {cols} WHERE id=%s RETURNING *", params)
     if not row:
         raise HTTPException(status_code=404, detail="Event not found")
+
+    add_audit_log(
+        actor_user_id=user_id,
+        action="event.update",
+        entity_table="events",
+        entity_id=row["id"],
+        metadata={
+            "changed_fields": list(data.keys()),
+            "title": row["title"],
+            "starts_at": row["starts_at"].isoformat() if row["starts_at"] else None,
+            "ends_at": row["ends_at"].isoformat() if row["ends_at"] else None,
+        },
+    )
+
     return row
 
 
@@ -180,12 +232,34 @@ def delete_event(
 ):
     user = current["user"]
     role = user.get("role")
+    user_id = user["id"]
+
     if role not in ("coach", "admin"):
         raise HTTPException(status_code=403, detail="Solo coaches o admins pueden borrar eventos.")
 
     with db.connect() as conn:
-        count = db.execute(conn, "DELETE FROM events WHERE id=%s", [event_id])
-    if count == 0:
-        raise HTTPException(status_code=404, detail="Event not found")
+        # Fetch event for logging before deletion
+        row = db.fetchone(conn, "SELECT * FROM events WHERE id=%s", [event_id])
+        if not row:
+            raise HTTPException(status_code=404, detail="Event not found")
+
+        db.execute(conn, "DELETE FROM events WHERE id=%s", [event_id])
+
+    add_audit_log(
+        actor_user_id=user_id,
+        action="event.delete",
+        entity_table="events",
+        entity_id=event_id,
+        metadata={
+            "title": row["title"],
+            "starts_at": row["starts_at"].isoformat() if row["starts_at"] else None,
+            "ends_at": row["ends_at"].isoformat() if row["ends_at"] else None,
+            "location": row["location"],
+            "had_image": bool(row["image_url"]),
+            "had_video_call_link": bool(row["video_call_link"]),
+        },
+    )
+
     return {"deleted": True}
+
 

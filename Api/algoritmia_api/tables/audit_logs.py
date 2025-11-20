@@ -1,10 +1,10 @@
+import json
 from typing import Optional, Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException, Depends, Request
 from pydantic import BaseModel
 
 from .. import db
-from .auth import get_current_user
 
 router = APIRouter(prefix="/audit-logs", tags=["AuditLogs"])
 
@@ -39,6 +39,13 @@ class AuditLogCreate(BaseModel):
     entity_id: Optional[int] = None
     metadata: Optional[dict[str, Any]] = None
 
+
+import json
+from typing import Optional, Any
+
+# ... imports, router, DDL, etc. ...
+
+
 def add_audit_log(
     *,
     actor_user_id: Optional[int],
@@ -47,28 +54,53 @@ def add_audit_log(
     entity_id: Optional[int] = None,
     metadata: Optional[dict[str, Any]] = None,
 ) -> None:
+    """
+    Internal helper to append an audit log entry.
+
+    Used by other routers (auth, users, contests, etc.).
+    Does NOT depend on get_current_user, so it's safe to import from auth.py.
+    """
+    json_metadata = json.dumps(metadata, default=str) if metadata is not None else None
+
     with db.connect() as conn:
-        db.fetchone(
+        db.execute(
             conn,
             """
             INSERT INTO audit_logs(actor_user_id, action, entity_table, entity_id, metadata)
-            VALUES (%s,%s,%s,%s,%s)
+            VALUES (%s,%s,%s,%s,%s::jsonb)
             """,
-            [actor_user_id, action, entity_table, entity_id, metadata],
+            [actor_user_id, action, entity_table, entity_id, json_metadata],
         )
 
+# ---------- Admin-only dependency without top-level import of auth ----------
 
-def require_admin(current = Depends(get_current_user)):
-    if current["role"] != "admin":
+def _require_admin(request: Request):
+    """
+    Lazy-imports get_current_user to avoid circular imports.
+
+    auth.py can safely do:
+        from .audit_logs import add_audit_log
+
+    and we only import auth.get_current_user here when a request actually hits
+    an /audit-logs endpoint.
+    """
+    from .auth import get_current_user  # local import breaks the circular dependency
+
+    auth_ctx = get_current_user(request)
+    user = auth_ctx["user"]
+    if user.get("role") != "admin":
         raise HTTPException(status_code=403, detail="Solo administradores pueden ver los logs.")
-    return current
+    return auth_ctx
+
+
+# ---------- Endpoints (admin-only) ----------
 
 @router.get("")
 def list_audit_logs(
     actor_user_id: Optional[int] = None,
     entity_table: Optional[str] = None,
     entity_id: Optional[int] = None,
-    current = Depends(require_admin),
+    auth_ctx = Depends(_require_admin),
 ):
     base = "SELECT * FROM audit_logs"
     clauses = []
@@ -86,10 +118,36 @@ def list_audit_logs(
 
     if clauses:
         base += " WHERE " + " AND ".join(clauses)
+
     base += " ORDER BY created_at DESC LIMIT 300"
 
     with db.connect() as conn:
         rows = db.fetchall(conn, base, params)
+
     return {"items": rows}
 
 
+# Optional: keep a POST endpoint for manual/admin insertion.
+# You could also delete this if you only log via add_audit_log.
+
+@router.post("")
+def create_audit_log_endpoint(
+    payload: AuditLogCreate,
+    auth_ctx = Depends(_require_admin),
+):
+    with db.connect() as conn:
+        row = db.fetchone(
+            conn,
+            """
+            INSERT INTO audit_logs(actor_user_id, action, entity_table, entity_id, metadata)
+            VALUES (%s,%s,%s,%s,%s) RETURNING *
+            """,
+            [
+                payload.actor_user_id,
+                payload.action,
+                payload.entity_table,
+                payload.entity_id,
+                payload.metadata,
+            ],
+        )
+    return row
