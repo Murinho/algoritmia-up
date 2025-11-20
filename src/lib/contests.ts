@@ -79,24 +79,28 @@ export async function updateContest(
   });
 
   if (!res.ok) {
-    let detail = 'No se pudo actualizar el concurso.';
-    let errorBody: unknown = null;
+  let detail = "No se pudo actualizar el concurso.";
+  let errorBody: unknown = null;
 
-    try {
-      const json: unknown = await res.json();
-      errorBody = json;
-      if (json && typeof json === 'object' && 'detail' in json && typeof (json as any).detail === 'string') {
-        detail = (json as any).detail;
+  try {
+    const json: unknown = await res.json();
+    errorBody = json;
+
+    if (json && typeof json === "object" && "detail" in json) {
+      const withDetail = json as { detail?: unknown };
+      if (typeof withDetail.detail === "string") {
+        detail = withDetail.detail;
       }
-    } catch {
-      // ignore JSON parse errors
     }
-
-    throw new HttpError(res.status, detail, errorBody);
+  } catch {
+    // ignore JSON parse errors
   }
 
-  const json = (await res.json()) as ApiContestRow;
-  return toUiContest(json);
+  throw new HttpError(res.status, detail, errorBody);
+}
+
+const json = (await res.json()) as ApiContestRow;
+return toUiContest(json);
 }
 
 export async function deleteContest(contestId: string): Promise<{ deleted: boolean }> {
@@ -106,14 +110,18 @@ export async function deleteContest(contestId: string): Promise<{ deleted: boole
   });
 
   if (!res.ok) {
-    let detail = 'No se pudo eliminar el concurso.';
+    let detail = "No se pudo eliminar el concurso.";
     let errorBody: unknown = null;
 
     try {
       const json: unknown = await res.json();
       errorBody = json;
-      if (json && typeof json === 'object' && 'detail' in json && typeof (json as any).detail === 'string') {
-        detail = (json as any).detail;
+
+      if (json && typeof json === "object" && "detail" in json) {
+        const withDetail = json as { detail?: unknown };
+        if (typeof withDetail.detail === "string") {
+          detail = withDetail.detail;
+        }
       }
     } catch {
       // ignore JSON parse errors
@@ -123,4 +131,5 @@ export async function deleteContest(contestId: string): Promise<{ deleted: boole
   }
 
   return res.json(); // e.g. { deleted: true }
+
 }

@@ -63,20 +63,25 @@ export async function updateResource(
   });
 
   if (!res.ok) {
-    let detail = 'No se pudo actualizar el recurso.';
+    let detail = "No se pudo actualizar el recurso.";
     let errorBody: unknown = null;
 
     try {
       const json: unknown = await res.json();
       errorBody = json;
-      if (json && typeof json === 'object' && 'detail' in json && typeof (json as any).detail === 'string') {
-        detail = (json as any).detail;
+
+      if (json && typeof json === "object" && "detail" in json) {
+        const withDetail = json as { detail?: unknown };
+        if (typeof withDetail.detail === "string") {
+          detail = withDetail.detail;
+        }
       }
     } catch {
       // ignore JSON parse errors
     }
 
-    throw new HttpError(res.status, detail, errorBody);
+    const err = new HttpError(res.status, detail, errorBody);
+    throw err;
   }
 
   const json = (await res.json()) as ApiResourceRow;
