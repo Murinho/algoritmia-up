@@ -573,8 +573,8 @@ def login(payload: Login, response: Response):
             key=SESSION_COOKIE_NAME,
             value=raw_token,
             httponly=True,
-            samesite="lax",
-            secure=True,  # set to True in production over HTTPS!
+            samesite="none", # allow cross-site requests
+            secure=True,
             max_age=SESSION_COOKIE_AGE,
             path="/",
         )
