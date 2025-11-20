@@ -6,6 +6,7 @@ from pydantic import BaseModel, AnyUrl, Field
 
 from .. import db
 from .auth import get_current_user
+from .audit_logs import add_audit_log
 
 router = APIRouter(prefix="/contests", tags=["Contests"])
 
@@ -163,13 +164,33 @@ def create_contest(payload: ContestCreate, auth=Depends(get_current_user)):
                 payload.notes,
             ],
         )
-    return row_to_contest(row)
+
+    contest = row_to_contest(row)
+
+    add_audit_log(
+        actor_user_id=user_id,
+        action="contest.create",
+        entity_table="contests",
+        entity_id=row["id"],
+        metadata={
+            "title": row["title"],
+            "platform": row["platform"],
+            "season": row["season"],
+            "difficulty": row["difficulty"],
+            "format": row["format"],
+            "start_at": row["start_at"].isoformat(),
+            "end_at": row["end_at"].isoformat(),
+        },
+    )
+
+    return contest
 
 
 @router.patch("/{contest_id}")
 def update_contest(contest_id: int, payload: ContestUpdate, auth=Depends(get_current_user)):
     user = auth["user"]
     role = user.get("role")
+    user_id = user["id"]
 
     if role not in ("coach", "admin"):
         raise HTTPException(status_code=403, detail="Only coaches/admins can update contests")
@@ -195,20 +216,55 @@ def update_contest(contest_id: int, payload: ContestUpdate, auth=Depends(get_cur
 
     if not row:
         raise HTTPException(status_code=404, detail="Contest not found")
-    return row_to_contest(row)
+
+    contest = row_to_contest(row)
+
+    add_audit_log(
+        actor_user_id=user_id,
+        action="contest.update",
+        entity_table="contests",
+        entity_id=row["id"],
+        metadata={
+            "changed_fields": list(data.keys()),
+            "title": row["title"],
+            "platform": row["platform"],
+            "season": row["season"],
+        },
+    )
+
+    return contest
 
 
 @router.delete("/{contest_id}")
 def delete_contest(contest_id: int, auth=Depends(get_current_user)):
     user = auth["user"]
     role = user.get("role")
+    user_id = user["id"]
 
     if role not in ("coach", "admin"):
         raise HTTPException(status_code=403, detail="Only coaches/admins can delete contests")
 
     with db.connect() as conn:
-        count = db.execute(conn, "DELETE FROM contests WHERE id=%s", [contest_id])
+        # Fetch contest for logging metadata before deleting
+        row = db.fetchone(conn, "SELECT * FROM contests WHERE id=%s", [contest_id])
+        if not row:
+            raise HTTPException(status_code=404, detail="Contest not found")
 
-    if count == 0:
-        raise HTTPException(status_code=404, detail="Contest not found")
+        db.execute(conn, "DELETE FROM contests WHERE id=%s", [contest_id])
+
+    add_audit_log(
+        actor_user_id=user_id,
+        action="contest.delete",
+        entity_table="contests",
+        entity_id=contest_id,
+        metadata={
+            "title": row["title"],
+            "platform": row["platform"],
+            "season": row["season"],
+            "start_at": row["start_at"].isoformat(),
+            "end_at": row["end_at"].isoformat(),
+        },
+    )
+
     return {"deleted": True}
+
