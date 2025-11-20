@@ -5,61 +5,37 @@ export const API_BASE =
 
 export class HttpError extends Error {
   status: number;
-  body?: unknown;
+  body: any;
 
-  constructor(status: number, message: string, body?: unknown) {
+  constructor(status: number, message: string, body: any) {
     super(message);
     this.status = status;
     this.body = body;
   }
 }
 
-export async function postJSON<T>(
-  path: string,
-  payload: unknown,
-  init?: RequestInit
-): Promise<T> {
+export async function postJSON<T>(path: string, body: unknown): Promise<T> {
+  const API_BASE =
+    process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/+$/, "") || "";
+
   const res = await fetch(`${API_BASE}${path}`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers || {}),
-    },
-    body: JSON.stringify(payload),
-    // allow caller to override, but default to include cookies
-    credentials: init?.credentials ?? "include",
-    ...init,
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(body),
   });
 
-  // Read raw text first so we can handle both JSON and non-JSON bodies
-  let raw: string | null = null;
+  let data: any = null;
   try {
-    raw = await res.text();
+    data = await res.json();
   } catch {
-    raw = null;
-  }
-
-  let data: unknown = null;
-  if (raw && raw.length > 0) {
-    try {
-      data = JSON.parse(raw);
-    } catch {
-      // not JSON, keep the raw string
-      data = raw;
-    }
+    // ignore bad JSON
   }
 
   if (!res.ok) {
-    let msg = res.statusText || "Request failed";
-
-    if (data && typeof data === "object" && "detail" in data) {
-      // FastAPI-style error: {"detail": "..."}
-      msg = String((data as { detail: unknown }).detail);
-    }
-
-    throw new HttpError(res.status, msg, data);
+    const detail = data?.detail || data?.message || `HTTP ${res.status}`;
+    throw new HttpError(res.status, detail, data);
   }
 
-  // At this point, we **only** return the parsed data (or null if no body).
   return data as T;
 }

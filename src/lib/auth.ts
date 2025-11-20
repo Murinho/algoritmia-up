@@ -23,11 +23,6 @@ export async function loginLocal(
   );
 }
 
-export async function signupLocal(
-  payload: SignUpPayload
-): Promise<SignUpResponse> {
-  // no session expected or required here
-  return postJSON<SignUpResponse>("/auth/signup", payload, {
-    credentials: "include",
-  });
+export async function signupLocal(payload: SignUpPayload): Promise<SignUpResponse> {
+  return postJSON<SignUpResponse>("/auth/signup", payload);
 }

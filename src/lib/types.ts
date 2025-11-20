@@ -38,20 +38,21 @@ export type SignUpPayload = {
   preferred_name: string;
   email: string;
   codeforces_handle: string;
-  birthdate: string;           // "YYYY-MM-DD"
+  birthdate: string;
   degree_program: string;
   entry_year: number;
   entry_month: number;
   grad_year: number;
   grad_month: number;
-  country: string;             // your 2-letter code is fine if that's what you store
-  profile_image_url?: string | null;
+  country: string;
+  profile_image_url: string | null;
   password: string;
 };
 
 export type SignUpResponse = {
-  user: unknown;
-  identity: unknown;
+  user: any;
+  identity: any;
+  email_verification_sent: boolean;
 };
 
 export type Platform =

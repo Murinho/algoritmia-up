@@ -410,8 +410,6 @@ export default function SignUp() {
           _: "Ocurrió un error inesperado al crear la cuenta. Intenta nuevamente.",
         });
       }
-
-      setSuccessMsg(null);
     } finally {
       setSubmitting(false);
     }
