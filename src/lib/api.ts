@@ -5,16 +5,34 @@ export const API_BASE =
 
 export class HttpError extends Error {
   status: number;
-  body: any;
+  body: unknown;
 
-  constructor(status: number, message: string, body: any) {
+  constructor(status: number, message: string, body: unknown) {
     super(message);
     this.status = status;
     this.body = body;
   }
 }
 
-export async function postJSON<T>(path: string, body: unknown): Promise<T> {
+// Helper type + function to read detail/message safely
+type JsonLike = { [key: string]: unknown };
+
+function extractErrorDetail(body: unknown, status: number): string {
+  if (body && typeof body === "object") {
+    const obj = body as JsonLike;
+    const detail = obj["detail"];
+    const message = obj["message"];
+
+    if (typeof detail === "string") return detail;
+    if (typeof message === "string") return message;
+  }
+  return `HTTP ${status}`;
+}
+
+export async function postJSON<TResponse, TPayload = unknown>(
+  path: string,
+  body: TPayload
+): Promise<TResponse> {
   const API_BASE =
     process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/+$/, "") || "";
 
@@ -25,17 +43,18 @@ export async function postJSON<T>(path: string, body: unknown): Promise<T> {
     body: JSON.stringify(body),
   });
 
-  let data: any = null;
+  let data: unknown = null;
   try {
     data = await res.json();
   } catch {
-    // ignore bad JSON
+    // ignore bad/non-JSON responses
   }
 
   if (!res.ok) {
-    const detail = data?.detail || data?.message || `HTTP ${res.status}`;
+    const detail = extractErrorDetail(data, res.status);
     throw new HttpError(res.status, detail, data);
   }
 
-  return data as T;
+  // We trust the caller to pick the correct TResponse
+  return data as TResponse;
 }
