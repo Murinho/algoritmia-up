@@ -40,6 +40,12 @@ class AuditLogCreate(BaseModel):
     metadata: Optional[dict[str, Any]] = None
 
 
+import json
+from typing import Optional, Any
+
+# ... imports, router, DDL, etc. ...
+
+
 def add_audit_log(
     *,
     actor_user_id: Optional[int],
@@ -54,8 +60,7 @@ def add_audit_log(
     Used by other routers (auth, users, contests, etc.).
     Does NOT depend on get_current_user, so it's safe to import from auth.py.
     """
-    # Serialize metadata (dict) to JSON for the JSONB column
-    json_metadata = json.dumps(metadata) if metadata is not None else None
+    json_metadata = json.dumps(metadata, default=str) if metadata is not None else None
 
     with db.connect() as conn:
         db.execute(
@@ -66,7 +71,6 @@ def add_audit_log(
             """,
             [actor_user_id, action, entity_table, entity_id, json_metadata],
         )
-
 
 # ---------- Admin-only dependency without top-level import of auth ----------
 
