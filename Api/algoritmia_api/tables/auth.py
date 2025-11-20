@@ -322,13 +322,6 @@ def logout(response: Response, request: Request):
 
 @router.post("/signup")
 def signup(payload: SignUp, background_tasks: BackgroundTasks):
-    """
-    Create a user + local auth identity.
-    NOTE: This DOES NOT log the user in or create a session.
-    Frontend should redirect to the login page on success.
-
-    NEW: 
-    """
     # --- Server-side validations ---
 
     # 1) email domain

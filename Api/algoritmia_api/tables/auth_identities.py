@@ -228,13 +228,5 @@ def change_my_password(
             [new_hash, identity["id"]],
         )
 
-        # If you *don’t* have db.execute, you can instead do:
-        # with conn.cursor() as cur:
-        #     cur.execute(
-        #         "UPDATE auth_identities SET password_hash = %s WHERE id = %s",
-        #         [new_hash, identity["id"]],
-        #     )
-        # conn.commit()
-
     return {"ok": True}
 
