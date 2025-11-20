@@ -13,6 +13,7 @@ import urllib.error
 
 from .. import db
 from .auth import get_current_user
+from .audit_logs import add_audit_log
 
 CF_HANDLE_RE = re.compile(r"^[A-Za-z0-9_\-]{1,24}$")
 
@@ -223,6 +224,9 @@ def create_user(
     # Only admins can create arbitrary users
     _ensure_role(auth_ctx, {"admin"})
 
+    admin = auth_ctx["user"]
+    admin_id = admin["id"]
+
     # birthdate check
     _validate_birthdate_before_today(payload.birthdate)
 
@@ -259,6 +263,21 @@ def create_user(
                 payload.role,  # safe because only admins reach here
             ],
         )
+
+    add_audit_log(
+        actor_user_id=admin_id,
+        action="user.create",
+        entity_table="users",
+        entity_id=row["id"],
+        metadata={
+            "email": row["email"],
+            "role": row["role"],
+            "codeforces_handle": row["codeforces_handle"],
+            "degree_program": row["degree_program"],
+            "country": row["country"],
+        },
+    )
+
     return row
 
 
@@ -283,18 +302,13 @@ def update_me(
     fields.pop("role", None)
     fields.pop("profile_image_url", None)
 
-    # ✅ If codeforces_handle is being changed, validate against Codeforces
-    #    and ensure no other Algoritmia UP user already has it.
     if "codeforces_handle" in fields:
         new_cf = (fields["codeforces_handle"] or "").strip()
         old_cf = (user.get("codeforces_handle") or "").strip()
 
-        # Only do the checks if it actually changed
         if new_cf and new_cf != old_cf:
-            # 1) Check that the handle exists on Codeforces (calls CF API)
             _validate_codeforces_handle_exists(new_cf)
 
-            # 2) Check that no other user has this handle
             with db.connect() as conn:
                 existing = db.fetchone(
                     conn,
@@ -310,16 +324,14 @@ def update_me(
                     ),
                 )
 
-            # Normalize stored value
             fields["codeforces_handle"] = new_cf
         elif not new_cf:
-            # Optional: if you want to disallow empty handle on update
             raise HTTPException(
                 status_code=422,
                 detail="El handle de Codeforces no puede estar vacío.",
             )
 
-    # NEW: birthdate validation if present
+    # birthdate validation if present
     if "birthdate" in fields and fields["birthdate"] is not None:
         _validate_birthdate_before_today(fields["birthdate"])
 
@@ -352,6 +364,19 @@ def update_me(
     if not row:
         raise HTTPException(status_code=404, detail="User not found")
 
+    add_audit_log(
+        actor_user_id=user_id,
+        action="user.update_self",
+        entity_table="users",
+        entity_id=row["id"],
+        metadata={
+            "changed_fields": list(fields.keys()),
+            "codeforces_handle": row["codeforces_handle"],
+            "degree_program": row["degree_program"],
+            "country": row["country"],
+        },
+    )
+
     return row
 
 
@@ -379,27 +404,22 @@ async def upload_avatar(
     }
     ext = ext_map.get(file.content_type, ".jpg")
 
-    # Generate filename: user_<id>_<random>.ext
     random_part = secrets.token_hex(8)
     filename = f"user_{user_id}_{random_part}{ext}"
     dest_path = AVATAR_DIR / filename
     public_path = f"/static/avatars/{filename}"
 
-    # Read file contents
     contents = await file.read()
     with dest_path.open("wb") as f:
         f.write(contents)
 
-    # --- DB: get old path + set new path ---
     with db.connect() as conn:
-        # Get the currently stored avatar path
         row = db.fetchone(
             conn,
             "SELECT profile_image_url FROM users WHERE id=%s",
             [user_id],
         )
         if not row:
-            # roll back file write by deleting the new file
             try:
                 if dest_path.exists():
                     dest_path.unlink()
@@ -409,14 +429,13 @@ async def upload_avatar(
 
         old_path = row["profile_image_url"]
 
-        # Update to new path
         updated = db.fetchone(
             conn,
             "UPDATE users SET profile_image_url = %s WHERE id=%s RETURNING profile_image_url",
             [public_path, user_id],
         )
 
-    # --- Filesystem: delete old file if any ---
+    # Filesystem: delete old file if any
     if old_path and old_path != public_path and old_path.startswith("/static/avatars/"):
         old_filename = old_path.rsplit("/", 1)[-1]
         old_file_path = AVATAR_DIR / old_filename
@@ -424,8 +443,20 @@ async def upload_avatar(
             if old_file_path.exists():
                 old_file_path.unlink()
         except Exception:
-            # best-effort: don't crash if we can't delete
             pass
+
+    add_audit_log(
+        actor_user_id=user_id,
+        action="user.avatar.upload",
+        entity_table="users",
+        entity_id=user_id,
+        metadata={
+            "new_profile_image_url": updated["profile_image_url"],
+            "old_profile_image_url": old_path,
+            "content_type": file.content_type,
+            "filename": filename,
+        },
+    )
 
     return {"profile_image_url": updated["profile_image_url"]}
 
@@ -439,7 +470,6 @@ def delete_avatar(auth_ctx = Depends(get_current_user)):
     user_id = user["id"]
 
     with db.connect() as conn:
-        # Get old path
         row = db.fetchone(
             conn,
             "SELECT profile_image_url FROM users WHERE id=%s",
@@ -450,14 +480,12 @@ def delete_avatar(auth_ctx = Depends(get_current_user)):
 
         old_path = row["profile_image_url"]
 
-        # Set to NULL in DB
         db.fetchone(
             conn,
             "UPDATE users SET profile_image_url = NULL WHERE id=%s RETURNING id",
             [user_id],
         )
 
-    # Try to delete file from disk (best effort)
     if old_path and old_path.startswith("/static/avatars/"):
         filename = old_path.rsplit("/", 1)[-1]
         file_path = AVATAR_DIR / filename
@@ -465,8 +493,17 @@ def delete_avatar(auth_ctx = Depends(get_current_user)):
             if file_path.exists():
                 file_path.unlink()
         except Exception:
-            # don't crash if file deletion fails
             pass
+
+    add_audit_log(
+        actor_user_id=user_id,
+        action="user.avatar.delete",
+        entity_table="users",
+        entity_id=user_id,
+        metadata={
+            "old_profile_image_url": old_path,
+        },
+    )
 
     return {"profile_image_url": None}
 
@@ -499,10 +536,31 @@ def delete_user(
 ):
     # Only admins can delete arbitrary users
     _ensure_role(auth_ctx, {"admin"})
+    admin = auth_ctx["user"]
+    admin_id = admin["id"]
 
     with db.connect() as conn:
+        # Fetch user first for logging purposes
+        row = db.fetchone(conn, "SELECT * FROM users WHERE id=%s", [user_id])
+        if not row:
+            raise HTTPException(status_code=404, detail="User not found")
+
         count = db.execute(conn, "DELETE FROM users WHERE id=%s", [user_id])
-    if count == 0:
-        raise HTTPException(status_code=404, detail="User not found")
+
+    add_audit_log(
+        actor_user_id=admin_id,
+        action="user.delete",
+        entity_table="users",
+        entity_id=user_id,
+        metadata={
+            "email": row["email"],
+            "role": row["role"],
+            "codeforces_handle": row["codeforces_handle"],
+            "degree_program": row["degree_program"],
+            "country": row["country"],
+        },
+    )
+
     return {"deleted": True}
+
 
