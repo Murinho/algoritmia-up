@@ -125,7 +125,7 @@ export default function Leaderboard() {
 
       try {
         // 1) Get all Algoritmia UP users
-        const res = await fetch(`${API_BASE}/users`, {
+        const res = await fetch(`${API_BASE}/users/public-leaderboard`, {
           credentials: "include",
         });
         if (!res.ok) {
@@ -147,9 +147,6 @@ export default function Leaderboard() {
           return;
         }
 
-        // 3) Build Codeforces API URL
-        //    Example:
-        //    https://codeforces.com/api/user.info?handles=DmitriyH;Fefer_Ivan&checkHistoricHandles=false
         const joinedHandles = handles.join(";");
         const cfUrl = `https://codeforces.com/api/user.info?handles=${encodeURIComponent(
           joinedHandles

@@ -176,25 +176,28 @@ def list_users(
     return {"items": rows}
 
 
-@router.get("/{user_id}")
-def get_user(
-    user_id: int,
-    auth_ctx = Depends(get_current_user),
-):
-    current = auth_ctx["user"]
-
-    # Allow self OR coach/admin
-    if current["id"] != user_id and current["role"] not in ("coach", "admin"):
-        raise HTTPException(
-            status_code=403,
-            detail="No tienes permiso para ver este usuario.",
-        )
-
+@router.get("/public-leaderboard")
+def get_public_leaderboard_users():
+    """
+    Public endpoint used by the Codeforces leaderboard.
+    Returns only the minimal fields needed, WITHOUT email or role.
+    """
     with db.connect() as conn:
-        row = db.fetchone(conn, "SELECT * FROM users WHERE id=%s", [user_id])
-    if not row:
-        raise HTTPException(status_code=404, detail="User not found")
-    return row
+        rows = db.fetchall(
+            conn,
+            """
+            SELECT
+                id,
+                full_name,
+                codeforces_handle,
+                country,
+                profile_image_url
+            FROM users
+            WHERE codeforces_handle IS NOT NULL
+            ORDER BY created_at DESC
+            """
+        )
+    return {"items": rows}
 
 
 @router.get("/by-email")
@@ -351,20 +354,6 @@ def update_me(
 
     return row
 
-@router.delete("/{user_id}")
-def delete_user(
-    user_id: int,
-    auth_ctx = Depends(get_current_user),
-):
-    # Only admins can delete arbitrary users
-    _ensure_role(auth_ctx, {"admin"})
-
-    with db.connect() as conn:
-        count = db.execute(conn, "DELETE FROM users WHERE id=%s", [user_id])
-    if count == 0:
-        raise HTTPException(status_code=404, detail="User not found")
-    return {"deleted": True}
-
 
 @router.post("/me/avatar")
 async def upload_avatar(
@@ -440,6 +429,7 @@ async def upload_avatar(
 
     return {"profile_image_url": updated["profile_image_url"]}
 
+
 @router.delete("/me/avatar")
 def delete_avatar(auth_ctx = Depends(get_current_user)):
     """
@@ -479,3 +469,40 @@ def delete_avatar(auth_ctx = Depends(get_current_user)):
             pass
 
     return {"profile_image_url": None}
+
+
+@router.get("/{user_id}")
+def get_user(
+    user_id: int,
+    auth_ctx = Depends(get_current_user),
+):
+    current = auth_ctx["user"]
+
+    # Allow self OR coach/admin
+    if current["id"] != user_id and current["role"] not in ("coach", "admin"):
+        raise HTTPException(
+            status_code=403,
+            detail="No tienes permiso para ver este usuario.",
+        )
+
+    with db.connect() as conn:
+        row = db.fetchone(conn, "SELECT * FROM users WHERE id=%s", [user_id])
+    if not row:
+        raise HTTPException(status_code=404, detail="User not found")
+    return row
+
+
+@router.delete("/{user_id}")
+def delete_user(
+    user_id: int,
+    auth_ctx = Depends(get_current_user),
+):
+    # Only admins can delete arbitrary users
+    _ensure_role(auth_ctx, {"admin"})
+
+    with db.connect() as conn:
+        count = db.execute(conn, "DELETE FROM users WHERE id=%s", [user_id])
+    if count == 0:
+        raise HTTPException(status_code=404, detail="User not found")
+    return {"deleted": True}
+
