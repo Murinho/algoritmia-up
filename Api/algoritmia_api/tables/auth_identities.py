@@ -8,6 +8,7 @@ from passlib.hash import argon2
 
 from .. import db
 from .auth import get_current_user
+from .audit_logs import add_audit_log
 
 router = APIRouter(prefix="/auth-identities", tags=["AuthIdentities"])
 
@@ -188,7 +189,23 @@ def create_auth_identity(
                     pwd_hash,
                 ],
             )
+
+        add_audit_log(
+            actor_user_id=current_id,
+            action="auth_identity.create",
+            entity_table="auth_identities",
+            entity_id=row["id"],
+            metadata={
+                "provider": row["provider"],
+                "target_user_id": row["user_id"],
+                "is_self": (row["user_id"] == current_id),
+                # To avoid leaking email contents, just log whether it's present.
+                "email_present": bool(row["email"]),
+            },
+        )
+
         return row
+
     except Exception as e:
         msg = str(e).lower()
         if "auth_identities_user_provider_uq" in msg:
@@ -262,6 +279,18 @@ def change_my_password(
             "UPDATE auth_identities SET password_hash = %s WHERE id = %s",
             [new_hash, identity["id"]],
         )
+
+    add_audit_log(
+        actor_user_id=user_id,
+        action="auth_password.change",
+        entity_table="auth_identities",
+        entity_id=identity["id"],
+        metadata={
+            "provider": identity["provider"],
+            # You might add a marker if later you allow multiple identities:
+            # "reason": "user_initiated"
+        },
+    )
 
     return {"ok": True}
 
