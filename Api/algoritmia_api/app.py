@@ -20,7 +20,6 @@ from .tables import (
     email_verification_tokens,
     password_reset_tokens,
     audit_logs,
-    leaderboard,
     auth,
 )
 
@@ -95,7 +94,6 @@ def create_app() -> FastAPI:
     app.include_router(email_verification_tokens.router)
     app.include_router(password_reset_tokens.router)
     app.include_router(audit_logs.router)
-    app.include_router(leaderboard.router)
     app.include_router(auth.router)
 
     @app.post("/init")
@@ -117,7 +115,6 @@ def create_app() -> FastAPI:
                     ("email_verification_tokens", email_verification_tokens),
                     ("password_reset_tokens", password_reset_tokens),
                     ("audit_logs", audit_logs),
-                    ("leaderboard", leaderboard),
                     ("auth", auth)
                 ]:
                     try:
