@@ -301,20 +301,20 @@ def me(current = Depends(get_current_user)):
 
 
 @router.post("/logout")
-def logout(response: Response, request: Request):
-    raw = request.cookies.get(SESSION_COOKIE_NAME)
-    if not raw:
-        # idempotent
-        response.delete_cookie(SESSION_COOKIE_NAME, path="/")
-        return {"ok": True}
+def logout(response: Response, current = Depends(get_current_user)):
+    session = current["session"]
 
-    token_sha256 = _hash_token(raw)
     with db.connect() as conn:
         db.execute(
             conn,
-            "UPDATE sessions SET revoked_at=NOW() WHERE token_sha256=%s AND revoked_at IS NULL",
-            [token_sha256],
+            """
+            UPDATE sessions
+            SET revoked_at = NOW()
+            WHERE id = %s AND revoked_at IS NULL
+            """,
+            [session["id"]],
         )
+        conn.commit()
 
     response.delete_cookie(SESSION_COOKIE_NAME, path="/")
     return {"ok": True}
