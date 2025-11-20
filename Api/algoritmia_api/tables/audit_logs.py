@@ -1,3 +1,4 @@
+import json
 from typing import Optional, Any
 
 from fastapi import APIRouter, HTTPException, Depends, Request
@@ -53,14 +54,17 @@ def add_audit_log(
     Used by other routers (auth, users, contests, etc.).
     Does NOT depend on get_current_user, so it's safe to import from auth.py.
     """
+    # Serialize metadata (dict) to JSON for the JSONB column
+    json_metadata = json.dumps(metadata) if metadata is not None else None
+
     with db.connect() as conn:
         db.execute(
             conn,
             """
             INSERT INTO audit_logs(actor_user_id, action, entity_table, entity_id, metadata)
-            VALUES (%s,%s,%s,%s,%s)
+            VALUES (%s,%s,%s,%s,%s::jsonb)
             """,
-            [actor_user_id, action, entity_table, entity_id, metadata],
+            [actor_user_id, action, entity_table, entity_id, json_metadata],
         )
 
 
