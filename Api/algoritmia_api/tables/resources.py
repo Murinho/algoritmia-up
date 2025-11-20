@@ -5,6 +5,7 @@ from pydantic import BaseModel, AnyUrl, Field
 
 from .. import db
 from .auth import get_current_user
+from .audit_logs import add_audit_log
 
 router = APIRouter(prefix="/resources", tags=["Resources"])
 
@@ -144,7 +145,23 @@ def create_resource(payload: ResourceCreate, auth=Depends(get_current_user)):
             [inserted["id"]],
         )
 
-    return row_to_resource(row)
+    resource = row_to_resource(row)
+
+    add_audit_log(
+        actor_user_id=user_id,
+        action="resource.create",
+        entity_table="resources",
+        entity_id=row["id"],
+        metadata={
+            "title": row["title"],
+            "type": row["type"],
+            "difficulty": row["difficulty"],
+            "tags": row["tags"] or [],
+            "added_by": row["added_by"],
+        },
+    )
+
+    return resource
 
 
 @router.get("/{resource_id}")
@@ -174,6 +191,7 @@ def get_resource(
 def update_resource(resource_id: int, payload: ResourceUpdate, auth=Depends(get_current_user)):
     user = auth["user"]
     role = user.get("role")
+    user_id = user["id"]
 
     if role not in ("coach", "admin"):
         raise HTTPException(status_code=403, detail="Only coaches/admins can update resources")
@@ -211,20 +229,58 @@ def update_resource(resource_id: int, payload: ResourceUpdate, auth=Depends(get_
             [updated["id"]],
         )
 
-    return row_to_resource(row)
+    resource = row_to_resource(row)
+
+    add_audit_log(
+        actor_user_id=user_id,
+        action="resource.update",
+        entity_table="resources",
+        entity_id=row["id"],
+        metadata={
+            "changed_fields": list(data.keys()),
+            "title": row["title"],
+            "type": row["type"],
+            "difficulty": row["difficulty"],
+        },
+    )
+
+    return resource
 
 
 @router.delete("/{resource_id}")
 def delete_resource(resource_id: int, auth=Depends(get_current_user)):
     user = auth["user"]
     role = user.get("role")
+    user_id = user["id"]
 
     if role not in ("coach", "admin"):
         raise HTTPException(status_code=403, detail="Only coaches/admins can delete resources")
 
     with db.connect() as conn:
+        # Fetch before deleting for logging purposes
+        row = db.fetchone(
+            conn,
+            "SELECT * FROM resources WHERE id=%s",
+            [resource_id],
+        )
+
+        if not row:
+            raise HTTPException(status_code=404, detail="Resource not found")
+
         count = db.execute(conn, "DELETE FROM resources WHERE id=%s", [resource_id])
 
-    if count == 0:
-        raise HTTPException(status_code=404, detail="Resource not found")
+    add_audit_log(
+        actor_user_id=user_id,
+        action="resource.delete",
+        entity_table="resources",
+        entity_id=resource_id,
+        metadata={
+            "title": row["title"],
+            "type": row["type"],
+            "difficulty": row["difficulty"],
+            "tags": row["tags"] or [],
+            "added_by": row["added_by"],
+        },
+    )
+
     return {"deleted": True}
