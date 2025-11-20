@@ -5,8 +5,8 @@ from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 
 from .. import db
-from .auth import get_current_user  # ⬅ import auth context
-
+from .auth import get_current_user
+from .audit_logs import add_audit_log
 
 router = APIRouter(prefix="/password-reset-tokens", tags=["PasswordResetTokens"])
 
@@ -74,6 +74,9 @@ def create_password_reset_token(
     payload: PasswordResetTokenCreate,
     auth_ctx = Depends(_require_admin),  # ⬅ admin-only
 ):
+    admin = auth_ctx["user"]
+    admin_id = admin["id"]
+
     expires_at = datetime.utcnow() + timedelta(minutes=payload.ttl_minutes)
     with db.connect() as conn:
         row = db.fetchone(
@@ -84,6 +87,21 @@ def create_password_reset_token(
             """,
             [payload.user_id, payload.token_hash, expires_at],
         )
+
+    add_audit_log(
+        actor_user_id=admin_id,
+        action="password_reset_token.create",
+        entity_table="password_reset_tokens",
+        entity_id=None,  # UUID → store it in metadata instead
+        metadata={
+            "token_id": str(row["id"]),
+            "user_id": row["user_id"],
+            "ttl_minutes": payload.ttl_minutes,
+            "expires_at": row["expires_at"].isoformat(),
+            "token_hash_present": bool(row["token_hash"]),
+        },
+    )
+
     return row
 
 
@@ -92,6 +110,9 @@ def mark_password_reset_token_used(
     token_id: str,
     auth_ctx = Depends(_require_admin),  # ⬅ admin-only
 ):
+    admin = auth_ctx["user"]
+    admin_id = admin["id"]
+
     with db.connect() as conn:
         row = db.fetchone(
             conn,
@@ -100,4 +121,19 @@ def mark_password_reset_token_used(
         )
     if not row:
         raise HTTPException(status_code=404, detail="Token not found")
+
+
+    add_audit_log(
+        actor_user_id=admin_id,
+        action="password_reset_token.mark_used",
+        entity_table="password_reset_tokens",
+        entity_id=None,  # UUID goes into metadata
+        metadata={
+            "token_id": str(row["id"]),
+            "user_id": row["user_id"],
+            "used_at": row["used_at"].isoformat() if row["used_at"] else None,
+        },
+    )
+
     return row
+
