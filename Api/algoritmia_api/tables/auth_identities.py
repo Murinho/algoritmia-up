@@ -171,10 +171,70 @@ def change_my_password(
             detail="La nueva contraseña debe tener al menos 8 caracteres.",
         )
 
-    # NEW: strength validation
+    # Strength validation
     _validate_password_strength(payload.new_password)
 
     with db.connect() as conn:
-        ...
-        # (rest of your existing logic stays the same)
+        # 1) Get the local identity for this user
+        identity = db.fetchone(
+            conn,
+            """
+            SELECT id, provider, password_hash
+            FROM auth_identities
+            WHERE user_id = %s AND provider = 'local'
+            """,
+            [user_id],
+        )
+
+        if not identity:
+            # User logged in via OAuth only, no local password to change
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Tu cuenta no tiene una contraseña local configurada. "
+                    "Inicia sesión con tu proveedor (Google, GitHub, etc.) "
+                    "o configura primero una contraseña local."
+                ),
+            )
+
+        if not identity["password_hash"]:
+            # Just in case, guard against null hash
+            raise HTTPException(
+                status_code=400,
+                detail="Tu cuenta no usa contraseña local.",
+            )
+
+        # 2) Verify current password
+        if not argon2.verify(payload.current_password, identity["password_hash"]):
+            raise HTTPException(
+                status_code=401,
+                detail="La contraseña actual no es correcta.",
+            )
+
+        # 3) Prevent reusing the same password
+        if argon2.verify(payload.new_password, identity["password_hash"]):
+            raise HTTPException(
+                status_code=422,
+                detail="La nueva contraseña no puede ser igual a la actual.",
+            )
+
+        # 4) Hash and update
+        new_hash = argon2.hash(payload.new_password)
+
+        # If you have db.execute helper:
+        db.execute(
+            conn,
+            "UPDATE auth_identities SET password_hash = %s WHERE id = %s",
+            [new_hash, identity["id"]],
+        )
+
+        # If you *don’t* have db.execute, you can instead do:
+        # with conn.cursor() as cur:
+        #     cur.execute(
+        #         "UPDATE auth_identities SET password_hash = %s WHERE id = %s",
+        #         [new_hash, identity["id"]],
+        #     )
+        # conn.commit()
+
+    return {"ok": True}
 
