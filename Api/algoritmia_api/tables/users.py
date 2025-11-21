@@ -190,7 +190,7 @@ def get_public_leaderboard_users():
             """
             SELECT
                 id,
-                full_name,
+                preferred_name,
                 codeforces_handle,
                 country,
                 profile_image_url
