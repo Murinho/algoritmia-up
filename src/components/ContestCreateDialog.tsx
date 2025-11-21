@@ -464,6 +464,14 @@ export default function ContestCreateDialog({
                 </div>
               </div>
             </Field>
+            <p className="flex items-start gap-2 text-xs text-zinc-400">
+              <StickyNote size={14} className="mt-[2px] text-zinc-500" />
+              <span>
+                Nota: la dificultad y los tags no se mostrarán a los participantes hasta que el concurso
+                haya terminado, para evitar spoilers.
+              </span>
+            </p>
+
             <Field label="Notas (opcional)">
               <div className="flex items-start gap-2 rounded-xl bg-zinc-800 border border-white/10 px-3">
                 <StickyNote size={16} className="text-zinc-400 mt-2" />
