@@ -7,7 +7,7 @@ import { API_BASE } from "@/lib/api";
 
 type AlgoritmiaUser = {
   id: number;
-  full_name: string;
+  preferred_name: string;
   codeforces_handle?: string | null;
   country: string;
   profile_image_url?: string | null;
@@ -196,7 +196,7 @@ export default function Leaderboard() {
             {
               id: String(u.id),
               handle,
-              name: u.full_name,
+              name: u.preferred_name,
               countryCode,
               rating,
               maxRating,

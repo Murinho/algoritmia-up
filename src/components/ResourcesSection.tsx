@@ -259,7 +259,7 @@ export default function ResourcesSection() {
   return (
     <section
       aria-labelledby="resources-title"
-      className="relative min-h-[100dvh] pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] flex items-center"
+      className="relative min-h-[80dvh] pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] flex items-center"
     >
       <div
         aria-hidden="true"

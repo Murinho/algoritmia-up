@@ -33,6 +33,60 @@ function Stars({ n }: { n: number }) {
   );
 }
 
+type ContestDateValue = Contest['startsAt'];
+
+function isContestFinished(c: Contest): boolean {
+  if (!c.startsAt || !c.endsAt) return false;
+
+  const now = Date.now();
+  const end = new Date(c.endsAt as unknown as string).getTime();
+
+  if (Number.isNaN(end)) return false;
+
+  return now > end;
+}
+
+function StatusPill({
+  startsAt,
+  endsAt,
+}: {
+  startsAt: ContestDateValue;
+  endsAt: ContestDateValue;
+}) {
+  if (!startsAt || !endsAt) {
+    return (
+      <span className="inline-flex items-center rounded-full border border-white/10 bg-black/30 px-2 py-0.5 text-xs text-white/70">
+        —
+      </span>
+    );
+  }
+
+  const now = new Date();
+  const start = new Date(startsAt as unknown as string);
+  const end = new Date(endsAt as unknown as string);
+
+  let label = 'Activo';
+  let classes =
+    'bg-emerald-500/15 text-emerald-200 border-emerald-400/40';
+
+  if (now < start) {
+    label = 'Próximamente';
+    classes = 'bg-amber-500/15 text-amber-200 border-amber-400/40';
+  } else if (now > end) {
+    label = 'Finalizado';
+    classes = 'bg-slate-500/20 text-slate-200 border-slate-400/40';
+  }
+
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium ${classes}`}
+    >
+      <span className="h-1.5 w-1.5 rounded-full bg-current" />
+      {label}
+    </span>
+  );
+}
+
 type SortKey = keyof Pick<
   Contest,
   'title' | 'platform' | 'difficulty' | 'format' | 'startsAt' | 'endsAt' | 'location' | 'season'
@@ -105,7 +159,7 @@ export default function ContestsSection() {
 
       try {
         const res = await fetch(`${API_BASE_LOCAL}/contests`, {
-          credentials: 'include', // cookie if needed (even though list is public)
+          credentials: 'include',
         });
 
         if (!res.ok) {
@@ -213,8 +267,6 @@ export default function ContestsSection() {
   }
 
   function handleCreate() {
-    // You probably re-fetch contests after creating from elsewhere,
-    // so here we just close the dialog.
     setOpenCreate(false);
   }
 
@@ -242,7 +294,7 @@ export default function ContestsSection() {
   return (
     <section
       aria-labelledby="contests-title"
-      className="relative min-h-[100dvh] pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] flex items-center"
+      className="relative min-h-[80dvh] pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] flex items-center"
     >
       <div
         aria-hidden="true"
@@ -296,192 +348,238 @@ export default function ContestsSection() {
             </div>
           </div>
 
-          {loadError && (
-            <div className="px-4 pb-2 text-xs text-red-200">
-              {loadError}
-            </div>
-          )}
+          {loadError && <div className="px-4 pb-2 text-xs text-red-200">{loadError}</div>}
 
           <div className="overflow-x-auto">
-            <table className="min-w-[1150px] w-full text-left text-sm text-white/90">
+            <table className="min-w-[1250px] w-full text-left text-sm text-white/90">
               <thead>
                 <tr className="border-y border-white/10 bg-white/5 text-white">
+                  {/* 1. Título */}
                   <th className="px-4 py-3 min-w-[280px]">
                     <SortButton k="title" label="Título" />
                   </th>
-                  <th className="px-4 py-3 w-40">
-                    <SortButton k="platform" label="Plataforma" />
-                  </th>
-                  <th className="px-4 py-3 min-w-[200px]">URL</th>
-                  <th className="px-4 py-3 min-w-[200px]">Tags</th>
-                  <th className="px-4 py-3 w-32">
-                    <SortButton k="difficulty" label="Dificultad" />
-                  </th>
-                  <th className="px-4 py-3 w-28">
-                    <SortButton k="format" label="Formato" />
-                  </th>
+                  {/* 2. Status */}
+                  <th className="px-4 py-3 w-36">Status</th>
+                  {/* 3. URL */}
+                  <th className="px-4 py-3 min-w-[140px]">URL</th>
+                  {/* 4. Inicio */}
                   <th className="px-4 py-3 w-44">
                     <SortButton k="startsAt" label="Inicio" />
                   </th>
+                  {/* 5. Fin */}
                   <th className="px-4 py-3 w-44">
                     <SortButton k="endsAt" label="Fin" />
                   </th>
+                  {/* 6. Plataforma */}
+                  <th className="px-4 py-3 w-40">
+                    <SortButton k="platform" label="Plataforma" />
+                  </th>
+                  {/* 7. Sede */}
                   <th className="px-4 py-3 min-w-[180px]">
                     <SortButton k="location" label="Sede" />
                   </th>
+                  {/* 8. Formato */}
+                  <th className="px-4 py-3 w-28">
+                    <SortButton k="format" label="Formato" />
+                  </th>
+                  {/* 9. Temporada */}
                   <th className="px-4 py-3 w-36">
                     <SortButton k="season" label="Temporada" />
                   </th>
+                  {/* 10. Dificultad */}
+                  <th className="px-4 py-3 w-32">
+                    <SortButton k="difficulty" label="Dificultad" />
+                  </th>
+                  {/* 11. Tags */}
+                  <th className="px-4 py-3 min-w-[200px]">Tags</th>
+                  {/* 12. Notas */}
                   <th className="px-4 py-3 min-w-[220px]">Notas</th>
+                  {/* 13. Acciones */}
                   <th className="px-4 py-3 w-28 text-center">Acciones</th>
                 </tr>
               </thead>
 
               <tbody>
                 {!loading &&
-                  data.map((c) => (
-                    <tr key={c.id} className="border-b border-white/10 hover:bg-white/5">
-                      <td className="px-4 py-3">
-                        <span className="inline-flex items-center gap-2 font-medium text-white">
-                          <Trophy className="h-4 w-4" />
-                          {c.title}
-                        </span>
-                      </td>
+                  data.map((c) => {
+                    const finished = isContestFinished(c);
 
-                      <td className="px-4 py-3">
-                        <span className="rounded-md border border-white/10 bg-black/30 px-2 py-1 text-xs">
-                          {c.platform}
-                        </span>
-                      </td>
+                    return (
+                      <tr key={c.id} className="border-b border-white/10 hover:bg-white/5">
+                        {/* 1. Título */}
+                        <td className="px-4 py-3">
+                          <span className="inline-flex items-center gap-2 font-medium text-white">
+                            <Trophy className="h-4 w-4" />
+                            {c.title}
+                          </span>
+                        </td>
 
-                      <td className="px-4 py-3">
-                        {c.url ? (
-                          <Link
-                            href={c.url}
-                            target="_blank"
-                            className="inline-flex items-center gap-1 text-white/90 underline decoration-white/30 underline-offset-2 hover:decoration-white"
-                          >
-                            Abrir
-                            <ExternalLink className="h-3.5 w-3.5" />
-                          </Link>
-                        ) : (
-                          <span className="text-white/50">—</span>
-                        )}
-                      </td>
+                        {/* 2. Status */}
+                        <td className="px-4 py-3">
+                          <StatusPill startsAt={c.startsAt} endsAt={c.endsAt} />
+                        </td>
 
-                      <td className="px-4 py-3">
-                        <div className="flex flex-wrap gap-1.5">
-                          {c.tags.map((t) => (
-                            <span
-                              key={t}
-                              className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-black/30 px-2 py-0.5 text-xs"
+                        {/* 3. URL */}
+                        <td className="px-4 py-3">
+                          {c.url ? (
+                            <Link
+                              href={c.url}
+                              target="_blank"
+                              className="inline-flex items-center gap-1 text-white/90 underline decoration-white/30 underline-offset-2 hover:decoration-white"
                             >
-                              {t}
-                            </span>
-                          ))}
-                        </div>
-                      </td>
+                              Abrir
+                              <ExternalLink className="h-3.5 w-3.5" />
+                            </Link>
+                          ) : (
+                            <span className="text-white/50">—</span>
+                          )}
+                        </td>
 
-                      <td className="px-4 py-3">
-                        <Stars n={c.difficulty} />
-                      </td>
-
-                      <td className="px-4 py-3">
-                        <span className="rounded-md border border-white/10 bg-black/30 px-2 py-1 text-xs">
-                          {c.format}
-                        </span>
-                      </td>
-
-                      <td className="px-4 py-3">
-                        <time
-                          className="inline-flex items-center gap-1 text-white/80"
-                          dateTime={c.startsAt as unknown as string}
-                          title={new Date(c.startsAt as unknown as string).toLocaleString()}
-                        >
-                          <Calendar className="h-4 w-4" />
-                          {new Date(c.startsAt as unknown as string).toLocaleDateString()}
-                          <span className="inline-flex items-center gap-1">
-                            <Clock className="ml-1 h-4 w-4" />
-                            {new Date(c.startsAt as unknown as string).toLocaleTimeString([], {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}
-                          </span>
-                        </time>
-                      </td>
-
-                      <td className="px-4 py-3">
-                        <time
-                          className="inline-flex items-center gap-1 text-white/80"
-                          dateTime={c.endsAt as unknown as string}
-                          title={new Date(c.endsAt as unknown as string).toLocaleString()}
-                        >
-                          <Calendar className="h-4 w-4" />
-                          {new Date(c.endsAt as unknown as string).toLocaleDateString()}
-                          <span className="inline-flex items-center gap-1">
-                            <Clock className="ml-1 h-4 w-4" />
-                            {new Date(c.endsAt as unknown as string).toLocaleTimeString([], {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}
-                          </span>
-                        </time>
-                      </td>
-
-                      <td className="px-4 py-3">
-                        <span className="inline-flex items-center gap-1 text-white/90">
-                          <MapPin className="h-4 w-4" />
-                          {c.location}
-                        </span>
-                      </td>
-
-                      <td className="px-4 py-3">
-                        <span className="rounded-md border border-white/10 bg-black/30 px-2 py-1 text-xs">
-                          {c.season}
-                        </span>
-                      </td>
-
-                      <td className="px-4 py-3">
-                        <span className="text-white/80">
-                          {c.notes ? c.notes : <span className="text-white/50">—</span>}
-                        </span>
-                      </td>
-
-                      <td className="px-4 py-3 text-center">
-                        {canEdit ? (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditingContest(c);
-                              setOpenUpdate(true);
-                            }}
-                            className="inline-flex items-center gap-1 rounded-lg border border-white/15 bg-black/30 px-3 py-1.5 text-xs font-medium text-white/90 hover:bg-white/10 transition"
+                        {/* 4. Inicio */}
+                        <td className="px-4 py-3">
+                          <time
+                            className="inline-flex items-center gap-1 text-white/80"
+                            dateTime={c.startsAt as unknown as string}
+                            title={new Date(c.startsAt as unknown as string).toLocaleString()}
                           >
-                            <Pencil className="h-3.5 w-3.5" />
-                            Editar
-                          </button>
-                        ) : (
-                          <span className="text-white/40 text-xs">—</span>
-                        )}
+                            <Calendar className="h-4 w-4" />
+                            {new Date(c.startsAt as unknown as string).toLocaleDateString()}
+                            <span className="inline-flex items-center gap-1">
+                              <Clock className="ml-1 h-4 w-4" />
+                              {new Date(c.startsAt as unknown as string).toLocaleTimeString([], {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })}
+                            </span>
+                          </time>
+                        </td>
+
+                        {/* 5. Fin */}
+                        <td className="px-4 py-3">
+                          <time
+                            className="inline-flex items-center gap-1 text-white/80"
+                            dateTime={c.endsAt as unknown as string}
+                            title={new Date(c.endsAt as unknown as string).toLocaleString()}
+                          >
+                            <Calendar className="h-4 w-4" />
+                            {new Date(c.endsAt as unknown as string).toLocaleDateString()}
+                            <span className="inline-flex items-center gap-1">
+                              <Clock className="ml-1 h-4 w-4" />
+                              {new Date(c.endsAt as unknown as string).toLocaleTimeString([], {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })}
+                            </span>
+                          </time>
+                        </td>
+
+                        {/* 6. Plataforma */}
+                        <td className="px-4 py-3">
+                          <span className="rounded-md border border-white/10 bg-black/30 px-2 py-1 text-xs">
+                            {c.platform}
+                          </span>
+                        </td>
+
+                        {/* 7. Sede */}
+                        <td className="px-4 py-3">
+                          <span className="inline-flex items-center gap-1 text-white/90">
+                            <MapPin className="h-4 w-4" />
+                            {c.location}
+                          </span>
+                        </td>
+
+                        {/* 8. Formato */}
+                        <td className="px-4 py-3">
+                          <span className="rounded-md border border-white/10 bg-black/30 px-2 py-1 text-xs">
+                            {c.format}
+                          </span>
+                        </td>
+
+                        {/* 9. Temporada */}
+                        <td className="px-4 py-3">
+                          <span className="rounded-md border border-white/10 bg-black/30 px-2 py-1 text-xs">
+                            {c.season}
+                          </span>
+                        </td>
+
+                        {/* 10. Dificultad */}
+                        <td className="px-4 py-3">
+                          {finished ? (
+                            <Stars n={c.difficulty} />
+                          ) : (
+                            <span className="text-white/50 text-xs italic">
+                              Oculto hasta finalizar
+                            </span>
+                          )}
+                        </td>
+
+                        {/* 11. Tags */}
+                        <td className="px-4 py-3">
+                          {finished ? (
+                            c.tags.length > 0 ? (
+                              <div className="flex flex-wrap gap-1.5">
+                                {c.tags.map((t) => (
+                                  <span
+                                    key={t}
+                                    className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-black/30 px-2 py-0.5 text-xs"
+                                  >
+                                    {t}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-white/50">—</span>
+                            )
+                          ) : (
+                            <span className="text-white/50 text-xs italic">
+                              Oculto hasta finalizar
+                            </span>
+                          )}
+                        </td>
+
+                        {/* 12. Notas */}
+                        <td className="px-4 py-3">
+                          <span className="text-white/80">
+                            {c.notes ? c.notes : <span className="text-white/50">—</span>}
+                          </span>
+                        </td>
+
+                        {/* 13. Acciones */}
+                        <td className="px-4 py-3 text-center">
+                          {canEdit ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingContest(c);
+                                setOpenUpdate(true);
+                              }}
+                              className="inline-flex items-center gap-1 rounded-lg border border-white/15 bg-black/30 px-3 py-1.5 text-xs font-medium text-white/90 hover:bg-white/10 transition"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                              Editar
+                            </button>
+                          ) : (
+                            <span className="text-white/40 text-xs">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {!loading && data.length === 0 && (
+                    <tr>
+                      <td colSpan={13} className="px-4 py-10 text-center text-white/70">
+                        No se encontraron contests con “{query}”.
                       </td>
                     </tr>
-                  ))}
+                  )}
 
-                {!loading && data.length === 0 && (
-                  <tr>
-                    <td colSpan={11} className="px-4 py-10 text-center text-white/70">
-                      No se encontraron contests con “{query}”.
-                    </td>
-                  </tr>
-                )}
-
-                {loading && (
-                  <tr>
-                    <td colSpan={11} className="px-4 py-10 text-center text-white/70">
-                      Cargando contests…
-                    </td>
-                  </tr>
-                )}
+                  {loading && (
+                    <tr>
+                      <td colSpan={13} className="px-4 py-10 text-center text-white/70">
+                        Cargando contests…
+                      </td>
+                    </tr>
+                  )}
               </tbody>
             </table>
           </div>
