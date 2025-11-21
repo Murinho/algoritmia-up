@@ -18,6 +18,11 @@ const nextConfig: NextConfig = {
         port: '8000',
         pathname: '/static/avatars/**',
       },
+      {
+        protocol: "https",
+        hostname: "pub-39d0e5e5c0744c638a8637d82f24b5de.r2.dev",
+        pathname: "/**",
+      },
     ],
     formats: ['image/avif', 'image/webp'],
   },

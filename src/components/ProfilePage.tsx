@@ -372,8 +372,11 @@ export default function ProfilePage() {
           }));
 
           if (u.profile_image_url) {
-            // full URL for the <img />
-            setAvatarPreview(`${API_BASE}${u.profile_image_url}`);
+            const raw = u.profile_image_url as string;
+            const fullUrl = raw.startsWith("http://") || raw.startsWith("https://")
+              ? raw
+              : `${API_BASE}${raw}`;
+            setAvatarPreview(fullUrl);
           }
         }
       } catch {
@@ -424,7 +427,12 @@ export default function ProfilePage() {
       }));
 
       // Use the persisted URL from the backend (overrides the blob preview)
-      setAvatarPreview(`${API_BASE}${data.profile_image_url}`);
+      const raw = data.profile_image_url;
+      const fullUrl =
+        raw.startsWith("http://") || raw.startsWith("https://")
+          ? raw
+          : `${API_BASE}${raw}`;
+      setAvatarPreview(fullUrl);
     } catch (err) {
       console.error("Avatar upload exception:", err);
       alert("Error inesperado al subir la foto de perfil.");
