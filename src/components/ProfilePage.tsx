@@ -272,6 +272,10 @@ export default function ProfilePage() {
   // NEW: auth guard state
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deletingAccount, setDeletingAccount] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const router = useRouter();
 
@@ -590,6 +594,66 @@ export default function ProfilePage() {
       setLoggingOut(false);
     }
   };
+
+  const handleDeleteAccount = async () => {
+    if (!deletePassword) {
+      setDeleteError("Por favor introduce tu contraseña para continuar.");
+      return;
+    }
+
+    setDeletingAccount(true);
+    setDeleteError(null);
+
+    try {
+      const res = await fetch(`${API_BASE}/users/me`, {
+        method: "DELETE",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: deletePassword }),
+      });
+
+      // Treat any 4xx/5xx as error, anything below 400 as success
+      if (res.status >= 400) {
+        let msg = "No se pudo eliminar la cuenta. Verifica tu contraseña.";
+
+        // Try to read backend error message, but don't crash if it's not JSON
+        try {
+          const data = await res.json();
+          if (data && typeof (data as { detail?: unknown }).detail === "string") {
+            msg = data.detail as string;
+          }
+        } catch {
+          // ignore parse errors and keep default msg
+        }
+
+        setDeleteError(msg);
+        setDeletingAccount(false);
+        return;
+      }
+
+      // ✅ Success path (200, 204, or even 3xx)
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.removeItem("algoup_email");
+        } catch {
+          // ignore
+        }
+      }
+
+      // Close dialog before navigating
+      setDeleteDialogOpen(false);
+      setDeletePassword("");
+      setDeleteError(null);
+
+      alert("Tu cuenta ha sido eliminada. Gracias por ser parte de Algoritmia UP 💙");
+      router.replace("/login");
+    } catch (err) {
+      console.error("Delete account error:", err);
+      setDeleteError("Error inesperado al eliminar la cuenta. Intenta de nuevo.");
+      setDeletingAccount(false);
+    }
+  };
+
 
   if (checkingAuth) {
     return (
@@ -917,6 +981,32 @@ export default function ProfilePage() {
                   {saving ? "Guardando…" : "Guardar cambios"}
                 </button>
               </div>
+
+              {/* NEW: Danger zone */}
+              <div className="mt-8 rounded-2xl border border-red-500/30 bg-red-500/5 p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-red-200">
+                      Eliminar cuenta
+                    </p>
+                    <p className="mt-1 text-xs text-red-100/80">
+                      Esta acción es permanente. Se eliminará tu cuenta y datos
+                      asociados de Algoritmia UP.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDeletePassword("");
+                      setDeleteError(null);
+                      setDeleteDialogOpen(true);
+                    }}
+                    className="mt-2 rounded-xl border border-red-500/70 px-4 py-2 text-sm font-medium text-red-100 hover:bg-red-500/20 sm:mt-0"
+                  >
+                    Eliminar mi cuenta…
+                  </button>
+                </div>
+            </div>
             </div>
           </div>
         </div>
@@ -927,6 +1017,20 @@ export default function ProfilePage() {
           <span className="text-white">Ajustes de cuenta</span>.
         </p>
       </section>
+      <DeleteAccountDialog
+        open={deleteDialogOpen}
+        password={deletePassword}
+        error={deleteError}
+        loading={deletingAccount}
+        onPasswordChange={setDeletePassword}
+        onConfirm={handleDeleteAccount}
+        onClose={() => {
+          if (deletingAccount) return;
+          setDeleteDialogOpen(false);
+          setDeletePassword("");
+          setDeleteError(null);
+        }}
+      />
     </div>
   );
 }
@@ -1018,3 +1122,77 @@ function CountryFlag({ code }: { code: string }) {
     />
   );
 }
+
+type DeleteAccountDialogProps = {
+  open: boolean;
+  password: string;
+  error: string | null;
+  loading: boolean;
+  onPasswordChange: (value: string) => void;
+  onConfirm: () => void;
+  onClose: () => void;
+};
+
+function DeleteAccountDialog({
+  open,
+  password,
+  error,
+  loading,
+  onPasswordChange,
+  onConfirm,
+  onClose,
+}: DeleteAccountDialogProps) {
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+      <div className="w-full max-w-md rounded-2xl border border-white/15 bg-[#141414] p-6 shadow-2xl">
+        <h2 className="text-lg font-semibold text-white">
+          ¿Eliminar tu cuenta?
+        </h2>
+        <p className="mt-2 text-sm text-white/70">
+          Esta acción no se puede deshacer. Se eliminará tu cuenta de Algoritmia
+          UP y tus datos asociados. Si estás seguro, introduce tu contraseña para
+          confirmar.
+        </p>
+
+        <div className="mt-4">
+          <Label>Contraseña</Label>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => onPasswordChange(e.target.value)}
+            placeholder="Introduce tu contraseña"
+            className="mt-1 w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2.5 text-sm text-white placeholder:text-white/40 outline-none ring-0 focus:border-white/30"
+          />
+        </div>
+
+        {error && (
+          <p className="mt-3 text-xs text-red-400">
+            {error}
+          </p>
+        )}
+
+        <div className="mt-6 flex justify-end gap-3">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={loading}
+            className="rounded-xl border border-white/20 px-4 py-2 text-sm text-white/90 hover:bg-white/10 disabled:opacity-60"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={loading || !password}
+            className="rounded-xl bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-500 disabled:opacity-60"
+          >
+            {loading ? "Eliminando…" : "Sí, eliminar mi cuenta"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+

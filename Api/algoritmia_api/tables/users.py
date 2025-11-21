@@ -3,6 +3,7 @@ from typing import Optional, Literal
 
 from fastapi import APIRouter, HTTPException, Query, UploadFile, File, Depends
 from pydantic import BaseModel, EmailStr, Field
+from passlib.hash import argon2
 
 from pathlib import Path
 import secrets, hashlib, string, re
@@ -79,6 +80,9 @@ class UserUpdate(BaseModel):
     country: Optional[str] = None
     profile_image_url: Optional[str] = None
     role: Optional[Literal["user", "coach", "admin"]] = None
+
+class DeleteMePayload(BaseModel):
+    password: str
 
 def _ensure_role(auth_ctx, allowed_roles: set[str]) -> None:
     """
@@ -498,6 +502,68 @@ def delete_avatar(auth_ctx = Depends(get_current_user)):
     )
 
     return {"profile_image_url": None}
+
+
+@router.delete("/me")
+def delete_me(
+    payload: DeleteMePayload,
+    auth_ctx = Depends(get_current_user),
+):
+    user = auth_ctx["user"]
+    user_id = user["id"]
+
+    # 1) Verify password and read metadata we want to log
+    with db.connect() as conn:
+        row = db.fetchone(
+            conn,
+            """
+            SELECT ai.password_hash,
+                   u.email, u.role, u.codeforces_handle,
+                   u.degree_program, u.country
+            FROM auth_identities ai
+            JOIN users u ON u.id = ai.user_id
+            WHERE ai.user_id = %s AND ai.provider = 'local'
+            """,
+            [user_id],
+        )
+
+        if not row or not row["password_hash"]:
+            raise HTTPException(
+                status_code=400,
+                detail="No se pudo validar la contraseña para esta cuenta.",
+            )
+
+        if not argon2.verify(payload.password, row["password_hash"]):
+            raise HTTPException(status_code=403, detail="Contraseña incorrecta.")
+
+        # Save metadata before leaving the connection
+        email = row["email"]
+        role = row["role"]
+        codeforces_handle = row["codeforces_handle"]
+        degree_program = row["degree_program"]
+        country = row["country"]
+
+    # 2) Write audit log WHILE the user still exists
+    # (so the FK on actor_user_id passes; later the FK's ON DELETE rule can set it to NULL)
+    add_audit_log(
+        actor_user_id=user_id,
+        action="user.self_delete",
+        entity_table="users",
+        entity_id=user_id,
+        metadata={
+            "email": email,
+            "role": role,
+            "codeforces_handle": codeforces_handle,
+            "degree_program": degree_program,
+            "country": country,
+        },
+    )
+
+    # 3) Now delete the user
+    with db.connect() as conn:
+        db.execute(conn, "DELETE FROM users WHERE id=%s", [user_id])
+
+    return {"deleted": True}
 
 
 @router.get("/{user_id}")
