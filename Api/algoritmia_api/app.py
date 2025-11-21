@@ -2,13 +2,14 @@ import os
 import time
 from threading import Lock
 from typing import Any, Dict, Optional
-from fastapi.staticfiles import StaticFiles
 import logging
+
 logger = logging.getLogger("alg-init")
 logging.basicConfig(level=logging.INFO)
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from .routes import uploads
 
 from . import db
 from .tables import (
@@ -52,23 +53,7 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    avatar_root = os.getenv("AVATAR_DIR", "uploads/avatars")
-    os.makedirs(avatar_root, exist_ok=True)
-
-    app.mount(
-        "/static/avatars",
-        StaticFiles(directory=avatar_root),
-        name="avatars",
-    )
-
-    event_banner_root = "uploads/event_banners"
-    os.makedirs(event_banner_root, exist_ok=True)
-
-    app.mount(
-        "/static/event_banners",
-        StaticFiles(directory=event_banner_root),
-        name="event_banners",
-    )
+    # (No more local /static mounts — avatars and event banners are on R2 now)
 
     # Health/Version
     @app.get("/health")
@@ -95,6 +80,7 @@ def create_app() -> FastAPI:
     app.include_router(password_reset_tokens.router)
     app.include_router(audit_logs.router)
     app.include_router(auth.router)
+    app.include_router(uploads.router)
 
     @app.post("/init")
     def initialize(force: bool = False) -> Dict[str, Any]:
@@ -115,7 +101,7 @@ def create_app() -> FastAPI:
                     ("email_verification_tokens", email_verification_tokens),
                     ("password_reset_tokens", password_reset_tokens),
                     ("audit_logs", audit_logs),
-                    ("auth", auth)
+                    ("auth", auth),
                 ]:
                     try:
                         mod.ensure_table(conn)

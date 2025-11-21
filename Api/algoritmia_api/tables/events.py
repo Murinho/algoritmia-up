@@ -7,16 +7,14 @@ from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query, UploadFile, File, Depends
 from pydantic import BaseModel
-from pathlib import Path
 
 from .. import db
 from .auth import get_current_user
 from .audit_logs import add_audit_log
+from ..r2_client import upload_file_obj
 
 router = APIRouter(prefix="/events", tags=["Events"])
 
-EVENT_BANNER_DIR = Path("uploads/event_banners")
-EVENT_BANNER_DIR.mkdir(parents=True, exist_ok=True)
 
 DDL = """
 CREATE TABLE IF NOT EXISTS events (
@@ -151,19 +149,21 @@ def upload_banner(
     if role not in ("coach", "admin"):
         raise HTTPException(status_code=403, detail="Solo coaches o admins pueden subir banners.")
 
-    if not file.content_type.startswith("image/"):
+    if not file.content_type or not file.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="El archivo debe ser una imagen.")
 
-    os.makedirs(EVENT_BANNER_DIR, exist_ok=True)
+    # Determine extension
+    ext = "jpg"
+    if "." in file.filename:
+        ext = file.filename.rsplit(".", 1)[-1].lower()
 
-    ext = file.filename.split(".")[-1].lower()
-    filename = f"{uuid.uuid4()}.{ext}"
-    save_path = os.path.join(EVENT_BANNER_DIR, filename)
+    # Key inside the bucket, e.g.: events/banners/<uuid>.<ext>
+    key = f"events/banners/{uuid.uuid4().hex}.{ext}"
 
-    with open(save_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
-
-    public_url = f"/static/event_banners/{filename}"
+    try:
+        url = upload_file_obj(file.file, key=key, content_type=file.content_type)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error subiendo banner a R2: {e!r}")
 
     add_audit_log(
         actor_user_id=user_id,
@@ -171,14 +171,16 @@ def upload_banner(
         entity_table="event_banners",
         entity_id=None,
         metadata={
-            "filename": filename,
-            "original_filename": file.filename,
+            "key": key,
+            "filename": file.filename,
             "content_type": file.content_type,
-            "public_url": public_url,
+            "public_url": url,
         },
     )
 
-    return {"url": public_url}
+    # Frontend will use this as events.image_url
+    return {"url": url}
+
 
 
 @router.patch("/{event_id}")

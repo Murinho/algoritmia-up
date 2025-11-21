@@ -14,6 +14,7 @@ import urllib.error
 from .. import db
 from .auth import get_current_user
 from .audit_logs import add_audit_log
+from ..r2_client import upload_file_obj, delete_object, get_key_from_url
 
 CF_HANDLE_RE = re.compile(r"^[A-Za-z0-9_\-]{1,24}$")
 
@@ -386,10 +387,10 @@ async def upload_avatar(
     auth_ctx = Depends(get_current_user),
 ):
     """
-    Upload a profile picture for the current user.
-    - Saves the new file
-    - Updates profile_image_url
-    - Deletes the previous file (if any and different)
+    Upload a profile picture for the current user to R2.
+    - Uploads to R2
+    - Updates profile_image_url in DB
+    - Deletes the previous R2 object (if any)
     """
     user = auth_ctx["user"]
     user_id = user["id"]
@@ -405,13 +406,16 @@ async def upload_avatar(
     ext = ext_map.get(file.content_type, ".jpg")
 
     random_part = secrets.token_hex(8)
-    filename = f"user_{user_id}_{random_part}{ext}"
-    dest_path = AVATAR_DIR / filename
-    public_path = f"/static/avatars/{filename}"
+    key = f"avatars/user_{user_id}_{random_part}{ext}"
 
+    # We need the raw file-like object for upload_file_obj
     contents = await file.read()
-    with dest_path.open("wb") as f:
-        f.write(contents)
+
+    try:
+        from io import BytesIO
+        url = upload_file_obj(BytesIO(contents), key=key, content_type=file.content_type)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error subiendo avatar a R2: {e!r}")
 
     with db.connect() as conn:
         row = db.fetchone(
@@ -420,30 +424,21 @@ async def upload_avatar(
             [user_id],
         )
         if not row:
-            try:
-                if dest_path.exists():
-                    dest_path.unlink()
-            except Exception:
-                pass
             raise HTTPException(status_code=404, detail="User not found")
 
-        old_path = row["profile_image_url"]
+        old_url = row["profile_image_url"]
 
         updated = db.fetchone(
             conn,
             "UPDATE users SET profile_image_url = %s WHERE id=%s RETURNING profile_image_url",
-            [public_path, user_id],
+            [url, user_id],
         )
 
-    # Filesystem: delete old file if any
-    if old_path and old_path != public_path and old_path.startswith("/static/avatars/"):
-        old_filename = old_path.rsplit("/", 1)[-1]
-        old_file_path = AVATAR_DIR / old_filename
-        try:
-            if old_file_path.exists():
-                old_file_path.unlink()
-        except Exception:
-            pass
+    # Delete old avatar from R2 if possible
+    if old_url:
+        old_key = get_key_from_url(old_url)
+        if old_key:
+            delete_object(old_key)
 
     add_audit_log(
         actor_user_id=user_id,
@@ -452,9 +447,9 @@ async def upload_avatar(
         entity_id=user_id,
         metadata={
             "new_profile_image_url": updated["profile_image_url"],
-            "old_profile_image_url": old_path,
+            "old_profile_image_url": old_url,
             "content_type": file.content_type,
-            "filename": filename,
+            "key": key,
         },
     )
 
@@ -464,7 +459,7 @@ async def upload_avatar(
 @router.delete("/me/avatar")
 def delete_avatar(auth_ctx = Depends(get_current_user)):
     """
-    Remove the current user's profile picture (DB and file on disk).
+    Remove the current user's profile picture (DB and R2 object).
     """
     user = auth_ctx["user"]
     user_id = user["id"]
@@ -478,7 +473,7 @@ def delete_avatar(auth_ctx = Depends(get_current_user)):
         if not row:
             raise HTTPException(status_code=404, detail="User not found")
 
-        old_path = row["profile_image_url"]
+        old_url = row["profile_image_url"]
 
         db.fetchone(
             conn,
@@ -486,14 +481,11 @@ def delete_avatar(auth_ctx = Depends(get_current_user)):
             [user_id],
         )
 
-    if old_path and old_path.startswith("/static/avatars/"):
-        filename = old_path.rsplit("/", 1)[-1]
-        file_path = AVATAR_DIR / filename
-        try:
-            if file_path.exists():
-                file_path.unlink()
-        except Exception:
-            pass
+    # Delete from R2 if we can extract the key
+    if old_url:
+        old_key = get_key_from_url(old_url)
+        if old_key:
+            delete_object(old_key)
 
     add_audit_log(
         actor_user_id=user_id,
@@ -501,7 +493,7 @@ def delete_avatar(auth_ctx = Depends(get_current_user)):
         entity_table="users",
         entity_id=user_id,
         metadata={
-            "old_profile_image_url": old_path,
+            "old_profile_image_url": old_url,
         },
     )
 
