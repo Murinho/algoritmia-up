@@ -619,7 +619,7 @@ export default function SignUp() {
                     className="w-full rounded-md border border-white/10 bg-white/10 px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-[#C5133D]/60"
                   >
                     <option value="" disabled>
-                      Mes
+                      Temporada
                     </option>
                     {SEASONS.map((m) => (
                       <option key={m.value} value={m.value} className="bg-[#1a1a1a]">
@@ -657,7 +657,7 @@ export default function SignUp() {
                     className="w-full rounded-md border border-white/10 bg-white/10 px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-[#C5133D]/60"
                   >
                     <option value="" disabled>
-                      Mes
+                      Temporada
                     </option>
                     {SEASONS.map((m) => (
                       <option key={m.value} value={m.value} className="bg-[#1a1a1a]">

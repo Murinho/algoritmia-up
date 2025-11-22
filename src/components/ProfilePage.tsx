@@ -894,7 +894,7 @@ export default function ProfilePage() {
                       value={form.uniMonth}
                       onChange={(v) => handleChange("uniMonth", v)}
                       options={SEASONS}
-                      placeholder="Mes"
+                      placeholder="Temporada"
                     />
                     <SelectField
                       label=""
@@ -917,7 +917,7 @@ export default function ProfilePage() {
                       value={form.gradMonth}
                       onChange={(v) => handleChange("gradMonth", v)}
                       options={SEASONS}
-                      placeholder="Mes"
+                      placeholder="Temporada"
                     />
                     <SelectField
                       label=""
