@@ -7,18 +7,8 @@ import { signupLocal } from "@/lib/auth";
 import { HttpError } from "@/lib/api";
 
 const MONTHS = [
-  { value: "01", label: "Enero" },
-  { value: "02", label: "Febrero" },
-  { value: "03", label: "Marzo" },
-  { value: "04", label: "Abril" },
-  { value: "05", label: "Mayo" },
-  { value: "06", label: "Junio" },
-  { value: "07", label: "Julio" },
-  { value: "08", label: "Agosto" },
-  { value: "09", label: "Septiembre" },
-  { value: "10", label: "Octubre" },
-  { value: "11", label: "Noviembre" },
-  { value: "12", label: "Diciembre" },
+  { value: "01", label: "Verano" },
+  { value: "02", label: "Invierno" },
 ];
 
 const DEGREE_PROGRAMS = [
@@ -605,7 +595,7 @@ export default function SignUp() {
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div>
                 <label className="text-white">
-                  Ingreso a la universidad (mes / año)
+                  Ingreso a la universidad (temporada / año)
                 </label>
                 <div className="mt-2 grid grid-cols-2 gap-3">
                   <select
@@ -643,7 +633,7 @@ export default function SignUp() {
               </div>
               <div>
                 <label className="text-white">
-                  Graduación esperada (mes / año)
+                  Graduación esperada (temporada / año)
                 </label>
                 <div className="mt-2 grid grid-cols-2 gap-3">
                   <select
