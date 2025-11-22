@@ -38,6 +38,9 @@ const WF_DATA: WorldFinal[] = [
       { src: "/historia/wf2025/1.jpg", alt: "Team photo" },
       { src: "/historia/wf2025/2.jpg", alt: "Rehearsal contest" },
       { src: "/historia/wf2025/3.jpg", alt: "Rehearsal contest" },
+      { src: "/historia/wf2025/4.jpg", alt: "Second Thread and Errichto group photo" },
+      { src: "/historia/wf2025/5.jpg", alt: "Group photo at entrance" },
+      { src: "/historia/wf2025/6.jpg", alt: "Bike photo" },
     ],
   },
   {
