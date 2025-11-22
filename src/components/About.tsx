@@ -42,6 +42,8 @@ export default function About() {
               { src: "/about/icpc_world_finals.jpg", alt: "ICPC World Finals" },
               { src: "/about/contestants_and_balloons.jpg", alt: "Gran Premio De Mexico" },
               { src: "/about/contest_arena.jpg", alt: "Copa Algoritmia 2024" },
+              { src: "/about/gpmx_up.jpg", alt: "Gran Premio de Mexico 2022 Contest" },
+              { src: "/about/icpc_regionals_2024.jpg", alt: "ICPC Regionals 2024" },
             ]}
           />
 

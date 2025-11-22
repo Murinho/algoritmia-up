@@ -112,6 +112,9 @@ const WF_DATA: WorldFinal[] = [
       { src: "/historia/wf2021/1.jpg", alt: "Team photo" },
       { src: "/historia/wf2021/2.jpg", alt: "Contest" },
       { src: "/historia/wf2021/3.jpg", alt: "Team with cup" },
+      { src: "/historia/wf2021/4.jpg", alt: "Second Thread and Errichto group photo" },
+      { src: "/historia/wf2021/5.jpg", alt: "Group photo at entrance" },
+      { src: "/historia/wf2021/6.jpg", alt: "Bike photo" },
     ],
   },
   {
@@ -359,6 +362,24 @@ export default function History() {
         aria-hidden
         className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-br from-[#0D0D0D] via-[#2c1e28] to-[#C5133D]"
       />
+
+      {/* Intro Section */}
+      <section className="relative w-full py-10 sm:py-12 lg:py-14">
+        <div className="mx-auto max-w-4xl px-6 text-center">
+          <h1 className="text-4xl font-bold text-white">
+            Nuestra Historia
+          </h1>
+
+          <p className="mt-6 text-lg text-white/80 leading-relaxed">
+            La historia de <strong className="text-white"> Algoritmia UP</strong> se escribe con cada equipo 
+            que ha llevado nuestro nombre a <strong className="text-white">competencias internacionales</strong>. 
+            Esta sección celebra a quienes, con <strong className="text-white">dedicación, disciplina y pasión 
+            por el pensamiento algorítmico</strong>, han logrado dejar una <strong className="text-white">huella </strong> 
+            y representar a la <strong className="text-white">Universidad Panamericana</strong> en los 
+            <strong className="text-white"> escenarios más prestigiosos del mundo</strong>.
+          </p>
+        </div>
+      </section>
 
       {WF_DATA.map((wf, idx) => (
         <WorldFinalSection key={wf.id} wf={wf} flip={idx % 2 === 1} />

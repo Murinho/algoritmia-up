@@ -27,15 +27,39 @@ function parseIso(iso?: string): Date | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
+// Helper to compare only the calendar day
+function isSameCalendarDay(a: Date, b: Date): boolean {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
+
 function formatDisplayDate(event: EventItem): string {
-  const d = parseIso(event.startsAt);
-  if (!d) return '';
-  return d.toLocaleDateString('es-MX', {
+  const start = parseIso(event.startsAt);
+  const end = parseIso(event.endsAt);
+
+  if (!start) return '';
+
+  const opts: Intl.DateTimeFormatOptions = {
     day: 'numeric',
     month: 'long',
     year: 'numeric',
-  });
+  };
+
+  // If there is no end date, or both are the same day → show only the start day
+  if (!end || isSameCalendarDay(start, end)) {
+    return start.toLocaleDateString('es-MX', opts);
+  }
+
+  // Different days → show range "inicio – fin"
+  return `${start.toLocaleDateString('es-MX', opts)} – ${end.toLocaleDateString(
+    'es-MX',
+    opts,
+  )}`;
 }
+
 
 function formatDisplayTime(event: EventItem): string {
   const start = parseIso(event.startsAt);

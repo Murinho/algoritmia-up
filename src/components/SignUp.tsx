@@ -6,6 +6,11 @@ import Link from "next/link";
 import { signupLocal } from "@/lib/auth";
 import { HttpError } from "@/lib/api";
 
+const SEASONS = [
+  { value: "01", label: "Verano" },
+  { value: "02", label: "Invierno" },
+];
+
 const MONTHS = [
   { value: "01", label: "Enero" },
   { value: "02", label: "Febrero" },
@@ -489,14 +494,14 @@ export default function SignUp() {
               </div>
               <div>
                 <label htmlFor="email" className="text-white">
-                  Email (@up.edu.mx)
+                  Correo institucional
                 </label>
                 <input
                   id="email"
                   name="email"
                   type="email"
                   required
-                  placeholder="nombre.apellido@up.edu.mx"
+                  placeholder="0123456@up.edu.mx"
                   className="mt-2 w-full rounded-md border border-white/10 bg-white/10 px-3 py-2 text-white placeholder:text-white/50 focus:outline-none focus:ring-2 focus:ring-[#C5133D]/60"
                 />
                 {errors.email && (
@@ -605,7 +610,7 @@ export default function SignUp() {
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div>
                 <label className="text-white">
-                  Ingreso a la universidad (mes / año)
+                  Ingreso a la universidad (temporada / año)
                 </label>
                 <div className="mt-2 grid grid-cols-2 gap-3">
                   <select
@@ -614,9 +619,9 @@ export default function SignUp() {
                     className="w-full rounded-md border border-white/10 bg-white/10 px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-[#C5133D]/60"
                   >
                     <option value="" disabled>
-                      Mes
+                      Temporada
                     </option>
-                    {MONTHS.map((m) => (
+                    {SEASONS.map((m) => (
                       <option key={m.value} value={m.value} className="bg-[#1a1a1a]">
                         {m.label}
                       </option>
@@ -643,7 +648,7 @@ export default function SignUp() {
               </div>
               <div>
                 <label className="text-white">
-                  Graduación esperada (mes / año)
+                  Graduación esperada (temporada / año)
                 </label>
                 <div className="mt-2 grid grid-cols-2 gap-3">
                   <select
@@ -652,9 +657,9 @@ export default function SignUp() {
                     className="w-full rounded-md border border-white/10 bg-white/10 px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-[#C5133D]/60"
                   >
                     <option value="" disabled>
-                      Mes
+                      Temporada
                     </option>
-                    {MONTHS.map((m) => (
+                    {SEASONS.map((m) => (
                       <option key={m.value} value={m.value} className="bg-[#1a1a1a]">
                         {m.label}
                       </option>
@@ -695,7 +700,15 @@ export default function SignUp() {
                   className="mt-2 w-full rounded-md border border-white/10 bg-white/10 px-3 py-2 text-white placeholder:text-white/50 focus:outline-none focus:ring-2 focus:ring-[#C5133D]/60"
                 />
                 <p className="mt-1 text-[11px] text-white/70">
-                  Si no tienes una cuenta crea una aquí: https://codeforces.com/register
+                  Si no tienes una cuenta crea una aquí:{" "}
+                  <a
+                    href="https://codeforces.com/register"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline hover:text-white"
+                  >
+                    https://codeforces.com/register
+                  </a>
                 </p>
                 {errors.codeforces && (
                   <p className="mt-1 text-xs text-red-300">{errors.codeforces}</p>

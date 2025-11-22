@@ -29,6 +29,11 @@ const mockUser = {
   createdAt: "",
 };
 
+const SEASONS = [
+  { value: "01", label: "Verano" },
+  { value: "02", label: "Invierno" },
+];
+
 const MONTHS = [
   { value: "01", label: "Enero" },
   { value: "02", label: "Febrero" },
@@ -888,8 +893,8 @@ export default function ProfilePage() {
                       hideLabel
                       value={form.uniMonth}
                       onChange={(v) => handleChange("uniMonth", v)}
-                      options={MONTHS}
-                      placeholder="Mes"
+                      options={SEASONS}
+                      placeholder="Temporada"
                     />
                     <SelectField
                       label=""
@@ -911,8 +916,8 @@ export default function ProfilePage() {
                       hideLabel
                       value={form.gradMonth}
                       onChange={(v) => handleChange("gradMonth", v)}
-                      options={MONTHS}
-                      placeholder="Mes"
+                      options={SEASONS}
+                      placeholder="Temporada"
                     />
                     <SelectField
                       label=""
