@@ -27,7 +27,12 @@ export default function Contact() {
               </span>
               <div>
                 <h3 className="font-semibold text-white">Email</h3>
-                <p className="text-gray-300">algoritmiaup@gmail.com</p>
+                <a
+                  href="mailto:algoritmiaup@gmail.com"
+                  className="text-gray-300 underline hover:text-white"
+                >
+                  algoritmiaup@gmail.com
+                </a>
               </div>
             </li>
             <li className="flex gap-x-4">
