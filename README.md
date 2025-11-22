@@ -10,7 +10,7 @@ npm i -D tailwindcss postcss autoprefixer lucide-react react-icons
 
 First, Initialize and start a python venv and use python 3.13.3 
 
-SEcond, run the development server:
+Second, run the development server:
 
 ```bash
 npm run dev
