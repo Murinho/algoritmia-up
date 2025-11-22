@@ -29,9 +29,24 @@ const mockUser = {
   createdAt: "",
 };
 
-const MONTHS = [
+const SEASONS = [
   { value: "01", label: "Verano" },
   { value: "02", label: "Invierno" },
+];
+
+const MONTHS = [
+  { value: "01", label: "Enero" },
+  { value: "02", label: "Febrero" },
+  { value: "03", label: "Marzo" },
+  { value: "04", label: "Abril" },
+  { value: "05", label: "Mayo" },
+  { value: "06", label: "Junio" },
+  { value: "07", label: "Julio" },
+  { value: "08", label: "Agosto" },
+  { value: "09", label: "Septiembre" },
+  { value: "10", label: "Octubre" },
+  { value: "11", label: "Noviembre" },
+  { value: "12", label: "Diciembre" },
 ];
 
 // Example programs; replace with your real catalog
@@ -878,7 +893,7 @@ export default function ProfilePage() {
                       hideLabel
                       value={form.uniMonth}
                       onChange={(v) => handleChange("uniMonth", v)}
-                      options={MONTHS}
+                      options={SEASONS}
                       placeholder="Mes"
                     />
                     <SelectField
@@ -901,7 +916,7 @@ export default function ProfilePage() {
                       hideLabel
                       value={form.gradMonth}
                       onChange={(v) => handleChange("gradMonth", v)}
-                      options={MONTHS}
+                      options={SEASONS}
                       placeholder="Mes"
                     />
                     <SelectField

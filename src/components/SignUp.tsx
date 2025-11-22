@@ -6,9 +6,24 @@ import Link from "next/link";
 import { signupLocal } from "@/lib/auth";
 import { HttpError } from "@/lib/api";
 
-const MONTHS = [
+const SEASONS = [
   { value: "01", label: "Verano" },
   { value: "02", label: "Invierno" },
+];
+
+const MONTHS = [
+  { value: "01", label: "Enero" },
+  { value: "02", label: "Febrero" },
+  { value: "03", label: "Marzo" },
+  { value: "04", label: "Abril" },
+  { value: "05", label: "Mayo" },
+  { value: "06", label: "Junio" },
+  { value: "07", label: "Julio" },
+  { value: "08", label: "Agosto" },
+  { value: "09", label: "Septiembre" },
+  { value: "10", label: "Octubre" },
+  { value: "11", label: "Noviembre" },
+  { value: "12", label: "Diciembre" },
 ];
 
 const DEGREE_PROGRAMS = [
@@ -479,14 +494,14 @@ export default function SignUp() {
               </div>
               <div>
                 <label htmlFor="email" className="text-white">
-                  Email (@up.edu.mx)
+                  Correo institucional
                 </label>
                 <input
                   id="email"
                   name="email"
                   type="email"
                   required
-                  placeholder="nombre.apellido@up.edu.mx"
+                  placeholder="0123456@up.edu.mx"
                   className="mt-2 w-full rounded-md border border-white/10 bg-white/10 px-3 py-2 text-white placeholder:text-white/50 focus:outline-none focus:ring-2 focus:ring-[#C5133D]/60"
                 />
                 {errors.email && (
@@ -606,7 +621,7 @@ export default function SignUp() {
                     <option value="" disabled>
                       Mes
                     </option>
-                    {MONTHS.map((m) => (
+                    {SEASONS.map((m) => (
                       <option key={m.value} value={m.value} className="bg-[#1a1a1a]">
                         {m.label}
                       </option>
@@ -644,7 +659,7 @@ export default function SignUp() {
                     <option value="" disabled>
                       Mes
                     </option>
-                    {MONTHS.map((m) => (
+                    {SEASONS.map((m) => (
                       <option key={m.value} value={m.value} className="bg-[#1a1a1a]">
                         {m.label}
                       </option>
